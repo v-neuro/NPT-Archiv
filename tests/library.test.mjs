@@ -53,7 +53,7 @@ test('all seven explicit types persist with history and filter legacy unknowns s
 test('full verification and detail access detect a record edit preserving source size and timestamp',async t=>{
  const {storage,archive}=await setup(t);const s=await sampleOperations();await archive.commit(s.operations,s.files);
  const record=archive.snapshot.records[0],path=`records/${record.payload.id}.json`;const data=await storage.read(path);
- const changed=Buffer.from(data).toString().replace('"appVersion":"0.2.0"','"appVersion":"0.2.1"');assert.equal(Buffer.byteLength(changed),data.length);assert.notEqual(changed,Buffer.from(data).toString());
+ const changed=Buffer.from(data).toString().replace(/"appVersion":"([^"]+)"/,(_,version)=>`"appVersion":"${version.replace(/\d/,digit=>digit==='9'?'8':'9')}"`);assert.equal(Buffer.byteLength(changed),data.length);assert.notEqual(changed,Buffer.from(data).toString());
  await writeFile(storage.path(path),changed);const time=new Date(record.source.lastModified);await utimes(storage.path(path),time,time);
  const reopened=await Archive.open(storage,{compact:true});assert.equal(reopened.snapshot.readOnly,false);await assert.rejects(reopened.assessmentDetail(s.assessment.id),/Prüfsumme/);
  await reopened.refresh({deep:true});assert.equal(reopened.snapshot.readOnly,true);

@@ -6,7 +6,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source=join(root,'src'),dist=join(root,'dist');
 await mkdir(dist,{recursive:true});
 // Explicit allowlist: no data folders, fixtures, tests, handoff source or arbitrary public content enters the release.
-const files=['index.html','style.css','palette.css','app.js','shared.js','csv.js','model.js','storage.js','archive.js','import.js','assessment-types.js','summary.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
+const files=['index.html','style.css','palette.css','app.js','shared.js','csv.js','model.js','storage.js','archive.js','import.js','export.js','assessment-types.js','summary.js','measurement-labels.js','save-status.js','workflow.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
 const allowed=new Set([...files,'catalogue.js','vendor','RELEASE.json']);
 for(const entry of await readdir(dist))if(!allowed.has(entry))throw Error(`Unexpected release file: ${entry}. Use a new empty build directory.`);
 for(const file of files)await cp(join(source,file),join(dist,file));

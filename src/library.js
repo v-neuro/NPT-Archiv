@@ -1,6 +1,7 @@
+import { newSaveAttempt } from './save-status.js';
 import { APP_VERSION, PARSER_VERSION, FORMAT, SCHEMA, MAX_FILE, bytes, fail, parseJson, sha256, text, uid, validId } from './shared.js';
 import { applyOperations, emptyState, objectPath, originalsOf } from './model.js';
-import { projectRecord, PROJECTION_VERSION } from './projection.js';
+import { projectRecord, hydrateFieldInventory, PROJECTION_VERSION } from './projection.js';
 import { readManifest, verifiedWrite } from './storage.js';
 import { seal, validateRecord, validateRecordMetadata, verifyOriginal } from './record.js';
 
@@ -16,11 +17,11 @@ async function readIndex(storage,path,source,archiveId){
     for(const op of p.record.payload.operations)if(op.type==='revision.add'){
       if(op.revision.document.projected!==true||op.revision.document.projectionVersion!==PROJECTION_VERSION||op.revision.sourceRecordId!==p.record.payload.id||op.revision.sourceChecksum!==p.record.checksum)return null;
     }
-    return p.record;
+    return hydrateFieldInventory(p.record);
   }catch{return null;}
 }
 export async function scanLibrary(storage,options={}){
-  const {deep=false,memory=new Map(),onProgress=()=>{}}=options;
+  const {deep=false,verifyRecords=false,memory=new Map(),onProgress=()=>{}}=options;
   const manifest=await readManifest(storage),issues=[],records=[],seenTokens=new Set();
   const metrics={sourceRecordsRead:0,sourceBytesRead:0,indexHits:0,memoryHits:0,originalsHashed:0};
   const entries=await storage.list('records');
@@ -35,9 +36,9 @@ export async function scanLibrary(storage,options={}){
       const token=source?await indexToken(source):null;
       const cachePath=token?`indexes/v1/${token}.json`:null;
       if(token)seenTokens.add(token);
-      let record=!deep&&token?memory.get(token):null;
+      let record=!deep&&!verifyRecords&&token?memory.get(token):null;
       if(record)metrics.memoryHits++;
-      if(!record&&!deep&&cachePath){record=await readIndex(storage,cachePath,source,manifest.archiveId);if(record)metrics.indexHits++;}
+      if(!record&&!deep&&!verifyRecords&&cachePath){record=await readIndex(storage,cachePath,source,manifest.archiveId);if(record)metrics.indexHits++;}
       let needsIndex=false;
       if(!record){
         const data=await storage.read(path);metrics.sourceRecordsRead++;metrics.sourceBytesRead+=data.length;
@@ -98,7 +99,7 @@ export async function writeLibraryIndex(storage,snapshot){
   return written;
 }
 export async function commitLibrary(archive,operations,files,actor){
-  if(archive.busy)fail('Eine Speicherung läuft bereits.');archive.busy=true;
+  if(archive.busy)fail('Eine Speicherung läuft bereits.');archive.busy=true;archive.lastAttempt=newSaveAttempt(archive.snapshot);
   try{
     if(archive.snapshot.readOnly)fail('Änderungen sind bis zur Prüfung gesperrt.');
     if(!text(actor,100))fail('Bearbeiterkürzel ungültig.');
@@ -107,7 +108,7 @@ export async function commitLibrary(archive,operations,files,actor){
     if(before.readOnly||before.head!==archive.snapshot.head||before.manifest.archiveId!==archive.snapshot.manifest.archiveId)fail('Die Bibliothek wurde inzwischen geändert. Bitte erneut öffnen und Auswahl prüfen.');
     applyOperations(before.state,operations);
     const payload={format:FORMAT+'-commit',schemaVersion:SCHEMA,archiveId:before.manifest.archiveId,id:uid(),parent:before.head,createdAt:new Date().toISOString(),appVersion:APP_VERSION,actor,operations};
-    const record=await seal(payload),encoded=bytes(JSON.stringify(record));if(encoded.length>16*1024*1024)fail('Diese Auswahl ist zu groß. Bitte in kleineren Gruppen importieren.');
+    const record=await seal(payload),encoded=bytes(JSON.stringify(record));Object.assign(archive.lastAttempt,{recordId:payload.id,checksum:record.checksum,parent:payload.parent});if(encoded.length>16*1024*1024)fail('Diese Auswahl ist zu groß. Bitte in kleineren Gruppen importieren.');
     for(const original of originalsOf(operations)){
       const path=objectPath(original);
       if(!await archive.storage.exists(path)){
@@ -118,9 +119,11 @@ export async function commitLibrary(archive,operations,files,actor){
       await verifyOriginal(archive.storage,original);
     }
     const latest=await scanLibrary(archive.storage,opts);if(latest.readOnly||latest.head!==before.head)fail('Ein anderer Schreibzugriff wurde erkannt. Bitte erneut öffnen.');
+    archive.lastAttempt.recordWriteStarted=true;archive.lastAttempt.outcome='uncertain';
     await verifiedWrite(archive.storage,`records/${payload.id}.json`,encoded);
     const after=await scanLibrary(archive.storage,opts);archive.snapshot=after;archive.detailCache.clear();
     if(after.readOnly||after.head!==record.checksum)fail('Speicherung nicht eindeutig bestätigt. Bitte den Ordner erneut öffnen.');
+    archive.lastAttempt.outcome='saved';
     try{await writeLibraryIndex(archive.storage,after);}catch{after.issues.push({severity:'info',path:'indexes/',message:'Die Suchübersicht konnte nicht aktualisiert werden. Alle gespeicherten Daten bleiben erhalten; die Übersicht kann neu aufgebaut werden.'});}
     return after;
   }catch(error){archive.snapshot.readOnly=true;archive.snapshot.issues.push({severity:'error',path:'Speicherung',message:'Das Speicherergebnis ist unklar. Bitte den Ordner erneut öffnen, bevor Sie weiterarbeiten.'});throw error;}

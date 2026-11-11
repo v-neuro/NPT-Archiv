@@ -7,9 +7,10 @@ import { fixture,syntheticPdf,DiskStorage } from './support.mjs';
 import { createArchive,verifiedWrite } from '../src/storage.js';
 import { scanArchive,seal } from '../src/archive.js';
 import { objectPath } from '../src/model.js';
-import { decode,sha256,uid,bytes,FORMAT } from '../src/shared.js';
+import { decode,sha256,uid,bytes,FORMAT,APP_VERSION } from '../src/shared.js';
 import { parseCsv } from '../src/csv.js';
 import { scanLibrary,writeLibraryIndex } from '../src/library.js';
+import { PROJECTION_VERSION } from '../src/projection.js';
 import { ASSESSMENT_TYPES } from '../src/assessment-types.js';
 const count=Number(process.env.ARCHIVE_VOLUME_COUNT||780);
 assert.ok(Number.isInteger(count)&&count>0&&count<=10000);
@@ -41,6 +42,6 @@ try{
  const coldHeap=Math.round(process.memoryUsage().heapUsed/1024/1024);await writeLibraryIndex(storage,result);result=null;storage.calls=[];global.gc?.();
  const warmStarted=performance.now();result=await scanLibrary(storage);const warmEnded=performance.now();global.gc?.();
  assert.equal(result.metrics.sourceRecordsRead,0);assert.equal(result.metrics.originalsHashed,0);assert.equal(result.head,head);
- const report={count,baseline,commits:result.records.length,formatColumns:388,originals:count*2,sourceArchiveBytes:totalBytes,generationSeconds:+((opened-created)/1000).toFixed(2),coldRebuildSeconds:+((ended-opened)/1000).toFixed(2),coldHeapMiB:coldHeap,warmOpenSeconds:+((warmEnded-warmStarted)/1000).toFixed(2),warmHeapMiB:Math.round(process.memoryUsage().heapUsed/1024/1024),warmMetrics:result.metrics,environment:'developer local disk; tiny synthetic PDFs, not hospital network or realistic report sizes'};
+ const report={appVersion:APP_VERSION,projectionVersion:PROJECTION_VERSION,count,baseline,commits:result.records.length,formatColumns:388,originals:count*2,sourceArchiveBytes:totalBytes,generationSeconds:+((opened-created)/1000).toFixed(2),coldRebuildSeconds:+((ended-opened)/1000).toFixed(2),coldHeapMiB:coldHeap,warmOpenSeconds:+((warmEnded-warmStarted)/1000).toFixed(2),warmHeapMiB:Math.round(process.memoryUsage().heapUsed/1024/1024),warmMetrics:result.metrics,environment:'developer local disk; tiny synthetic PDFs, not hospital network or realistic report sizes'};
  await mkdir(new URL('../test-results/',import.meta.url),{recursive:true});await writeFile(new URL(`../test-results/volume-indexed-${count}.json`,import.meta.url),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
 }finally{await rm(directory,{recursive:true,force:true});}

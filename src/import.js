@@ -1,4 +1,4 @@
-import { MAX_BATCH, MAX_CSV, MAX_FILE, fail, sha256, uid } from './shared.js';
+import { MAX_BATCH, MAX_CSV, MAX_FILE, fail, sha256, uid, text } from './shared.js';
 import { parseCsv, changedFields, sourceValue } from './csv.js';
 import { allOriginals, selectedRevision } from './model.js';
 import { validAssessmentType } from './assessment-types.js';
@@ -42,9 +42,9 @@ export async function inspectFiles(files, state, columns, loadDocument = null) {
     rows.push(row);
   }
   for (const row of rows.filter(r => r.kind === 'pdf' && !r.error)) {
-    const stem = row.name.replace(/\.pdf$/i, '');
-    row.suggestions = rows.filter(r => r.kind === 'csv' && !r.error && r.name.replace(/\.csv$/i, '') === stem).map(r => `batch:${r.id}`);
-    for (const a of Object.values(state.assessments)) if (a.revisions.some(r => r.original.name.replace(/\.csv$/i, '') === stem)) row.suggestions.push(`existing:${a.id}`);
+    const key = reportNameKey(row.name);
+    row.suggestions = rows.filter(r => r.kind === 'csv' && !r.error && key && reportNameKey(r.name) === key).map(r => `batch:${r.id}`);
+    for (const a of Object.values(state.assessments)) if (key && a.revisions.some(r => reportNameKey(r.original.name) === key)) row.suggestions.push(`existing:${a.id}`);
     row.suggestions = [...new Set(row.suggestions)];
   }
   return rows;
@@ -97,4 +97,106 @@ export function buildImport(rows, state, newPatients = []) {
     files.set(row.hash, row.data);
   }
   return { operations, files, count: active.length };
+}
+
+const duplicate = row => ['duplicate', 'duplicate-in-batch'].includes(row.status);
+export function reportNameKey(name) {
+  const stem=name.replace(/(?:\.(?:csv|pdf))+$/i,'').normalize('NFC');
+  return [...stem].filter(character=>/[\p{L}\p{N}]/u.test(character)).slice(0,50).join('');
+}
+
+// One shared patient/stay assignment. Recompute matches from the original filename prefixes,
+// never from caller-provided suggestions or a previously selected PDF target.
+export function planPatientImport(rows, state, draft) {
+  const identifier = draft.identifier ?? '', stayId = draft.stayId ?? '';
+  const patient = Object.values(state.patients).find(p => p.identifier === identifier) ?? null;
+  const previous = patient ? Object.values(state.assessments).filter(a => a.patientId === patient.id)
+    .sort((a,b) => (selectedRevision(b)?.document.date ?? '').localeCompare(selectedRevision(a)?.document.date ?? '') || a.id.localeCompare(b.id)) : [];
+  const issues = [];
+  const issue = (code, message, row = null) => issues.push({ code, message, rowId: row?.id ?? null });
+  const active = rows.filter(r => !r.error && (r.kind === 'pdf' || !duplicate(r)));
+  if (typeof identifier !== 'string' || !/^[0-9]{1,100}$/.test(identifier)) issue('identifier', 'iMed Patienten-ID eingeben (nur Ziffern).');
+  if (typeof stayId !== 'string' || !/^[0-9]{1,100}$/.test(stayId)) issue('stay', 'Aufenthalts-ID eingeben (nur Ziffern).');
+  if (patient && draft.confirmedPatientId !== patient.id) issue('patient-confirmation', 'Das Hinzufügen zum vorhandenen Patienten bestätigen.');
+  const needsType = active.some(r => r.kind === 'csv' && (r.status === 'new' || r.action === 'separate' || !validAssessmentType(r.assessmentTypeId)));
+  if ((needsType || draft.assessmentTypeId && active.some(r=>r.kind==='csv')) && !validAssessmentType(draft.assessmentTypeId)) issue('assessment-type', 'Untersuchungsart auswählen.');
+  for (const row of rows) if (row.error) issue('invalid-file', row.error, row);
+  const prepared = active.map(row => ({ ...row, included: true, patientChoice: patient?.id ?? null, stayId,
+    assessmentTypeId: draft.assessmentTypeId || row.assessmentTypeId, confirmed: true,
+    status: row.kind === 'pdf' ? 'attachment' : row.status,
+    action: row.status === 'new' ? 'new' : row.action }));
+  const touched = new Set();
+  for (const row of prepared.filter(r => r.kind === 'csv')) {
+    if (touched.has(row.document.sessionId)) issue('session-duplicate', 'Mehrere Fassungen derselben Untersuchung: bitte nacheinander importieren.', row);
+    touched.add(row.document.sessionId);
+    if (row.status !== 'revision') continue;
+    if (!['keep','select','separate'].includes(row.action)) issue('revision-decision', 'Für die geänderte CSV eine Entscheidung auswählen.', row);
+    if (!row.note.trim()) issue('revision-reason', 'Grund für die geänderte Fassung angeben.', row);
+    if (row.action !== 'separate') {
+      const target = state.assessments[row.target];
+      if (!target || target.sessionId !== row.document.sessionId) issue('revision-target', 'Die bisherige Untersuchung auswählen.', row);
+      else if (target.patientId !== patient?.id || target.stayId !== stayId) issue('assignment-conflict', 'Die bisherige Untersuchung gehört zu einer anderen Patienten- oder Aufenthalts-ID. IDs korrigieren oder ausdrücklich eine getrennte Untersuchung anlegen.', row);
+    }
+  }
+  // Even a skipped duplicate CSV must not conceal a known conflicting owner.
+  for (const row of rows.filter(r => r.kind === 'csv' && !r.error && duplicate(r))) {
+    const owners = Object.values(state.assessments).filter(a => a.revisions.some(r => r.original.hash === row.hash));
+    if (owners.length && !owners.some(a => a.patientId === patient?.id && a.stayId === stayId)) issue('duplicate-owner', 'Diese CSV ist bereits unter einer anderen Patienten- oder Aufenthalts-ID gespeichert.', row);
+  }
+  const seenPdfLinks = new Set();
+  let duplicateCount = rows.filter(r=>r.kind!=='pdf'&&duplicate(r)).length;
+  for (const row of prepared.filter(r => r.kind === 'pdf')) {
+    const key=reportNameKey(row.name);
+    const csvs = rows.filter(r => r.kind === 'csv' && !r.error && key && reportNameKey(r.name) === key);
+    const candidates = new Set();
+    if (csvs.length) {
+      for (const csv of csvs) {
+        if (duplicate(csv)) {
+          const primary = prepared.find(r => r.kind === 'csv' && r.hash === csv.hash);
+          if (primary) candidates.add(primary.status === 'revision' && primary.action !== 'separate' ? `existing:${primary.target}` : `batch:${primary.id}`);
+          else for (const a of Object.values(state.assessments)) if (a.patientId === patient?.id && a.stayId === stayId && a.revisions.some(r => r.original.hash === csv.hash)) candidates.add(`existing:${a.id}`);
+        } else candidates.add(csv.status === 'revision' && csv.action !== 'separate' ? `existing:${csv.target}` : `batch:${csv.id}`);
+      }
+    } else {
+      for (const a of Object.values(state.assessments)) if (key && a.patientId === patient?.id && a.stayId === stayId && a.revisions.some(r => reportNameKey(r.original.name) === key)) candidates.add(`existing:${a.id}`);
+    }
+    if (candidates.size !== 1) {
+      issue(candidates.size ? 'pdf-ambiguous' : 'pdf-unmatched', candidates.size ? 'Der PDF-Dateiname passt zu mehreren Untersuchungen. Bitte CSV und PDF einzeln importieren.' : 'Der PDF-Dateiname passt zu keiner CSV für diesen Patienten und Aufenthalt. Bitte die passende PDF auswählen oder die zugehörige CSV hinzufügen.', row);
+      row.target = '';
+    } else {
+      row.target = [...candidates][0];
+      row.note = 'Automatisch zugeordnet: Die ersten bis zu 50 Buchstaben/Ziffern der Dateinamen stimmen überein; Trennzeichen und Dateiendungen wurden ausgelassen.';
+      // Deduplicate stored bytes separately from patient/assessment links. Identical
+      // PDF bytes for two examinations still need two durable attachment links.
+      const link = `${row.target}:${row.hash}`;
+      const target = row.target.startsWith('existing:') ? state.assessments[row.target.slice(9)] : null;
+      if (seenPdfLinks.has(link) || target?.attachments.some(a=>a.hash===row.hash)) { row.included=false; duplicateCount++; }
+      seenPdfLinks.add(link);
+    }
+  }
+  const included = prepared.filter(r=>r.included);
+  if (!included.length) issue('empty', 'Keine neuen Dateien zum Importieren.');
+  return { patient, previous, issues, rows: included, ready: issues.length === 0, needsType,
+    duplicateCount, csvCount: included.filter(r => r.kind === 'csv').length,
+    pdfCount: included.filter(r => r.kind === 'pdf').length };
+}
+
+export const validImportActor = actor => text(actor,100) && Boolean(actor.trim());
+export function buildPatientImport(rows, state, draft) {
+  const plan = planPatientImport(rows, state, draft);
+  if (!plan.ready) fail(plan.issues[0].message);
+  if (!validImportActor(draft.actor)) fail('Bearbeiterkürzel erforderlich (1–100 Zeichen).');
+  const patient = plan.patient ?? { id: uid(), identifier: draft.identifier, label: '' };
+  // PDF-only imports may extend an existing examination, never create an orphan patient.
+  if (!plan.patient && !plan.csvCount) fail('Für einen neuen Patienten die zugehörige CSV hinzufügen.');
+  const assigned = plan.rows.map(row => ({ ...row, patientChoice: patient.id }));
+  const built = buildImport(assigned, state, plan.patient ? [] : [patient]);
+  for (const op of built.operations) {
+    if (op.type === 'revision.add') {
+      op.revision.original.method = 'single-patient-import';
+      if (op.revision.reason === 'Neue Testung; explizite Zuordnung geprüft.') op.revision.reason = 'Neue Untersuchung im Ein-Patienten-Import.';
+    }
+    if (op.type === 'attachment.add') op.attachment.method = 'filename-prefix-50';
+  }
+  return { ...built, actor:draft.actor.trim() };
 }

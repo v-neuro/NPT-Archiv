@@ -1,3 +1,4 @@
+import { newSaveAttempt } from './save-status.js';
 import { FORMAT, SCHEMA, MAX_FILE, bytes, fail, parseJson, sha256, uid, validHash, validId, text } from './shared.js';
 import { applyOperations, emptyState, objectPath, originalsOf } from './model.js';
 import { readManifest, verifiedWrite } from './storage.js';
@@ -55,7 +56,7 @@ export class Archive {
   async commit(operations, files = new Map(), actor = '') {
     if (this.snapshot.compact) return commitLibrary(this,operations,files,actor);
     if (this.busy) fail('Ein Schreibvorgang läuft bereits.');
-    this.busy = true;
+    this.busy = true;this.lastAttempt=newSaveAttempt(this.snapshot);
     try {
       if (this.snapshot.readOnly) fail('Archiv im Schreibschutz. Wiederherstellung prüfen.');
       if (!text(actor, 100)) fail('Bearbeiterkürzel ungültig.');
@@ -65,7 +66,7 @@ export class Archive {
       const id = uid();
       const payload = { format: RECORD_FORMAT, schemaVersion: SCHEMA, archiveId: before.manifest.archiveId,
         id, parent: before.head, createdAt: new Date().toISOString(), actor, operations };
-      const envelope = await seal(payload); const encoded = bytes(JSON.stringify(envelope));
+      const envelope = await seal(payload); const encoded = bytes(JSON.stringify(envelope));Object.assign(this.lastAttempt,{recordId:id,checksum:envelope.checksum,parent:payload.parent});
       if (encoded.length > 16 * 1024 * 1024) fail('Commit zu groß. Kleineren Stapel importieren.');
       for (const a of originalsOf(operations)) {
         const path = objectPath(a);
@@ -79,10 +80,12 @@ export class Archive {
       // A second stale-head check reduces accidental overlap; it is not a cross-PC lock.
       const latest = await scanArchive(this.storage);
       if (latest.readOnly || latest.head !== before.head) fail('Anderer Schreibzugriff erkannt. Neu laden und prüfen.');
+      this.lastAttempt.recordWriteStarted=true;this.lastAttempt.outcome='uncertain';
       await verifiedWrite(this.storage, `records/${id}.json`, encoded);
       const after = await scanArchive(this.storage);
       this.snapshot = after;
       if (after.readOnly || after.head !== envelope.checksum) fail('Commit nicht eindeutig verifiziert. Ordner erneut öffnen; Wiederherstellung prüfen.');
+      this.lastAttempt.outcome='saved';
       return after;
     } catch (e) {
       // Includes uncertain close/readback errors: disallow retrying against stale in-memory state.

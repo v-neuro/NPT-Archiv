@@ -46,7 +46,7 @@ export function applyOperations(previous, operations, meta = {}, options = {}) {
         if (!isObject(a) || !validId(a.id) || typeof a.sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(a.sessionId) || typeof a.stayId !== 'string' || !/^[0-9]{1,100}$/.test(a.stayId) || state.assessments[a.id]) fail('Testungskennung oder numerische Aufenthaltskennung ungültig.');
         patient(a.patientId);
         if (a.assessmentTypeId != null && !validAssessmentType(a.assessmentTypeId)) fail('Untersuchungsart wird nicht unterstützt.');
-        state.assessments[a.id] = { ...a, assessmentTypeId:a.assessmentTypeId??null,revisions: [], selectedRevisionId: null, attachments: [] }; break;
+        state.assessments[a.id] = { ...a, assessmentTypeId:a.assessmentTypeId??null,excluded:false,revisions: [], selectedRevisionId: null, attachments: [] }; break;
       }
       case 'revision.add': {
         const a = assessment(op.assessmentId); const r = op.revision;
@@ -74,6 +74,11 @@ export function applyOperations(previous, operations, meta = {}, options = {}) {
         const a = assessment(op.assessmentId);
         if (!validAssessmentType(op.assessmentTypeId) || !text(op.reason,2000) || !op.reason.trim()) fail('Untersuchungsart und Änderungsgrund erforderlich.');
         a.assessmentTypeId=op.assessmentTypeId;break;
+      }
+      case 'assessment.exclusion.set': {
+        if (typeof op.excluded !== 'boolean') fail('Einschlussstatus ungültig.');
+        assessment(op.assessmentId).excluded=op.excluded;
+        break;
       }
       case 'attachment.add': {
         const a = assessment(op.assessmentId); validateAttachment(op.attachment);
@@ -105,3 +110,6 @@ export function allOriginals(state) {
   return [...Object.values(state.unlinked), ...Object.values(state.assessments).flatMap(a => [...a.revisions.map(r => r.original), ...a.attachments])];
 }
 export const selectedRevision = a => a?.revisions.find(r => r.id === a.selectedRevisionId);
+export const isExcluded = assessment => assessment?.excluded === true;
+export const matchesArchiveStatus = (assessment, status = 'included') => status === 'all' ||
+  status === 'excluded' && isExcluded(assessment) || status === 'included' && !isExcluded(assessment);
