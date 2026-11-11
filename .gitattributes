@@ -1,0 +1,3 @@
+# Preserve fixture export bytes on Windows checkouts as well as macOS.
+fixtures/*.csv -text
+*.pdf binary

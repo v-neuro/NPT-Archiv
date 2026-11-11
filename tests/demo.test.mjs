@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp,rm,readFile,readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createDemo } from '../scripts/create-demo.mjs';
+import { Archive } from '../src/archive.js';
+import { DiskStorage,makeFile } from './support.mjs';
+import { inspectFiles } from '../src/import.js';
+import { selectedRevision } from '../src/model.js';
+import { ASSESSMENT_TYPES } from '../src/assessment-types.js';
+test('realistic synthetic cohort has repeat stays, all types, unknown fields, revisions and import exercises',async t=>{
+ const base=await mkdtemp(join(tmpdir(),'npt-cohort-test-'));t.after(()=>rm(base,{recursive:true,force:true}));
+ const result=await createDemo(join(base,'demo'),21);assert.equal(result.patients,7);assert.equal(result.assessments,21);
+ const storage=new DiskStorage(join(result.root,'Bibliothek'));const archive=await Archive.open(storage,{compact:true});
+ assert.equal(archive.snapshot.manifest.syntheticOnly,true);assert.equal(archive.snapshot.metrics.sourceRecordsRead,0);
+ const assessments=Object.values(archive.snapshot.state.assessments),types=new Set(assessments.map(a=>a.assessmentTypeId));
+ for(const type of ASSESSMENT_TYPES)assert.ok(types.has(type.id));assert.ok(types.has(null));assert.equal(Object.keys(archive.snapshot.state.unlinked).length,1);
+ const revised=assessments.find(a=>a.sessionId==='sess_synthetic_000001');assert.equal(revised.revisions.length,2);assert.equal(revised.selectedRevisionId,revised.revisions[1].id);
+ const full=await archive.assessmentDetail(revised.id);assert.ok(selectedRevision(full).document.unknownFields.includes('synthetic_future_field'));assert.equal(selectedRevision(full).document.headers.length,389);
+ const exercise=join(result.root,'Importuebung');const files=[];for(const name of await readdir(exercise))files.push(makeFile(name,new Uint8Array(await readFile(join(exercise,name)))));
+ const rows=await inspectFiles(files,archive.snapshot.state,[],async(id,revisionId)=>(await archive.assessmentDetail(id)).revisions.find(r=>r.id===revisionId).document);
+ assert.ok(rows.some(r=>r.status==='duplicate'));assert.ok(rows.some(r=>r.error));assert.ok(rows.some(r=>r.status==='revision'&&r.changes.includes('tmt_a_s')));assert.equal(rows.filter(r=>r.status==='new').length,4);assert.ok(rows.filter(r=>r.status==='new').every(r=>r.assessmentTypeId===''));
+});

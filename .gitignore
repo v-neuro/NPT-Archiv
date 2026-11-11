@@ -1,0 +1,16 @@
+node_modules/
+dist/
+test-results/
+releases/
+.DS_Store
+*.log
+.vercel/
+.env
+.env.*
+*.pem
+*.key
+# Archives must stay outside this checkout. Also exclude their generated structure.
+archive.json
+objects/
+records/
+indexes/

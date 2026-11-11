@@ -1,0 +1,19 @@
+{
+  "name": "digitale-npt-archive",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local folder assessment archive; static browser application",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/serve.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:volume": "node --expose-gc tests/volume.mjs",
+    "export:hospital": "npm test && npm run build && node scripts/export-handoff.mjs",
+    "demo": "node scripts/create-demo.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.5.438"
+  }
+}

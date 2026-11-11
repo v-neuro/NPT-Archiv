@@ -1,0 +1,22 @@
+/* Knappschaft Kliniken Corporate Design Kurzmanual 2024, pp. 14–15.
+   User scope: colors only. Red stays at 100%; the other colors allow 20–100% tints.
+   Tints below mix the documented RGB value with white in sRGB. */
+:root {
+  --cd-red: #ae1613;
+  --cd-turquoise: #049e8e;
+  --cd-yellow: #f4c245;
+  --cd-beige: #e6dcd1;
+  --cd-gray: #47403d;
+  --cd-white: #ffffff;
+  --cd-beige-80: #ebe3da;
+  --cd-beige-60: #f0eae3;
+  --cd-beige-40: #f5f1ed;
+  --cd-beige-20: #faf8f6;
+  --cd-gray-80: #6c6664;
+  --cd-gray-60: #918c8b;
+  --cd-gray-40: #b5b3b1;
+  --cd-gray-20: #dad9d8;
+  --cd-turquoise-20: #cdece8;
+  --cd-turquoise-40: #9bd8d2;
+  --cd-yellow-20: #fdf3da;
+}

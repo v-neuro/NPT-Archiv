@@ -1,0 +1,21 @@
+import { cp, mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { APP_VERSION, PARSER_VERSION, SCHEMA } from '../src/shared.js';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const source=join(root,'src'),dist=join(root,'dist');
+await mkdir(dist,{recursive:true});
+// Explicit allowlist: no data folders, fixtures, tests, handoff source or arbitrary public content enters the release.
+const files=['index.html','style.css','palette.css','app.js','shared.js','csv.js','model.js','storage.js','archive.js','import.js','assessment-types.js','summary.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
+const allowed=new Set([...files,'catalogue.js','vendor','RELEASE.json']);
+for(const entry of await readdir(dist))if(!allowed.has(entry))throw Error(`Unexpected release file: ${entry}. Use a new empty build directory.`);
+for(const file of files)await cp(join(source,file),join(dist,file));
+const catalogue=JSON.parse(await readFile(join(source,'export-columns.json'),'utf8'));
+await writeFile(join(dist,'catalogue.js'),`export const columns = ${JSON.stringify(catalogue.columns)};\n`);
+const pdf=join(root,'node_modules/pdfjs-dist');
+await mkdir(join(dist,'vendor'),{recursive:true});
+for(const file of ['pdf.mjs','pdf.worker.mjs'])await cp(join(pdf,'build',file),join(dist,'vendor',file));
+for(const dir of ['cmaps','standard_fonts','wasm'])await cp(join(pdf,dir),join(dist,'vendor',dir),{recursive:true});
+await cp(join(pdf,'LICENSE'),join(dist,'vendor','LICENSE.pdfjs'));
+await writeFile(join(dist,'RELEASE.json'),JSON.stringify({appVersion:APP_VERSION,archiveFormat:SCHEMA,parserVersion:PARSER_VERSION,pdfjs:JSON.parse(await readFile(join(pdf,'package.json'),'utf8')).version,patientDataIncluded:false},null,2)+'\n');
+console.log(`Static release ready: ${dist}`);

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; connect-src 'none'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Digitale NPT · Archiv</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app"><p>Archiv wird geladen…</p></div>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <dialog id="report-dialog"><header><strong>Originalbericht · lokale Ansicht</strong><button id="close-report" type="button">Schließen</button></header><iframe id="report-frame" title="Lokale PDF-Seitenansicht" sandbox="allow-scripts allow-same-origin"></iframe></dialog>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
