@@ -1,6 +1,7 @@
 import { APP_VERSION, uid, fail, sha256, MAX_FILE } from './shared.js';
 import { capabilities, canOpen, permission, FolderStorage, createArchive, readManifest, probeFolder, inspectFolder } from './storage.js';
 import { Archive, copyArchive } from './archive.js';
+import { importedFieldGroups, importedFieldLabel, importedCellState } from './imported-fields.js';
 import { groupedMeasurementFields } from './measurement-labels.js';
 import { importReceipt, recheckConnection } from './workflow.js';
 import { exportArchiveCsv } from './export.js';
@@ -9,7 +10,7 @@ import { objectPath, selectedRevision, isExcluded, matchesArchiveStatus } from '
 import { sourceValue, changedFields } from './csv.js';
 import { columns } from './catalogue.js';
 import { ASSESSMENT_TYPES, assessmentTypeLabel, validAssessmentType, matchesAssessmentType } from './assessment-types.js';
-import { SUMMARY_MEASURES, measureContext, fieldLabel, performanceFields, hasPerformanceValue, isNumericSourceValue, performanceContext } from './summary.js';
+import { SUMMARY_MEASURES, fieldLabel, performanceFields, hasPerformanceValue, isNumericSourceValue, performanceContext } from './summary.js';
 
 const $ = s => document.querySelector(s);
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -19,7 +20,7 @@ const option = (value, label, selected) => `<option value="${escape(value)}" ${v
 const c = capabilities();
 let archive = null, page = 'home', rows = [], currentId = '', currentPatient = '', query = '', measure = '', filterStatus = 'included', listPage = 0, busy = false;
 let writer = false, releaseLock = null, lockCompletion = null, singleWriter = false, noticeTimer, sourceFolderName = '', lastProbe = '', pendingReport = null;
-let lockError='',saveFeedback=null,lastImportReceipt=null;
+let editDialogBusy=false,lockError='',saveFeedback=null,lastImportReceipt=null;
 let probeError = null, probeProgress = '', selectedFolder = null;
 let filterType='',patientQuery='',patientResultsOpen=true,detailData=null,importStage=1;
 let fieldQuery='',comparisonQuery='',busyMessage='Bitte warten… Fenster geöffnet lassen.';
@@ -126,8 +127,8 @@ function render() {
   const enteringPage=$('main')?.dataset.page!==page;const patientScroll=enteringPage?0:$('.patient-matches')?.scrollTop??0;
   const openDetails=$('main')?.dataset.page===page?[...document.querySelectorAll('main details[open]')].map(node=>node.id||node.querySelector(':scope > summary')?.textContent):[];
   const names = { home:'Startseite', storage: 'Bibliothek öffnen', assessments: 'Untersuchungen', patients: 'Patienten', import: 'Importieren', detail: 'Untersuchung', complete:'Import abgeschlossen', recovery: 'Sicherung & Hilfe' };
-  const lockNotice=archive?modeView()+saveFeedbackView():'';
-  $('#app').innerHTML = `<div class="shell"><aside><button class="brand" id="home-logo" type="button" data-nav="home" aria-label="Digitale NPT · Zur Startseite" ${page==='home'?'aria-current="page"':''}><span class="brandmark" aria-hidden="true">n</span>Digitale NPT</button><div class="brand-sub">Assessment-Archiv</div><nav aria-label="Hauptnavigation">${nav()}</nav><div class="aside-bottom">${navItem('recovery','↺','Sicherung & Hilfe')}<div class="aside-meta"><strong><span class="local-dot"></span>Patienteninhalte bleiben lokal</strong>Version ${APP_VERSION}</div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Digitale NPT &nbsp; / &nbsp; <b>${names[page]}</b></div>${archive ? pill(sourceFolderName, archive.snapshot.readOnly ? 'warn' : '') : selectedFolder ? pill(selectedFolder.name+' · noch nicht geöffnet','warn') : pill('Kein Archiv geöffnet','warn')}</header>${busy ? `<div class="busybar" role="status">${escape(busyMessage)}</div>` : ''}<main>${archive?.snapshot.manifest.syntheticOnly?'<div class="note good">Übungsbibliothek · erfundene Daten</div>':''}${lockNotice}${(!archive && !['home','storage','recovery'].includes(page)) ? archiveSetupView() : views[page]() }</main></div></div>`;
+  const lockNotice=archive?saveFeedbackView():'';
+  $('#app').innerHTML = `<div class="shell"><aside><button class="brand" id="home-logo" type="button" data-nav="home" aria-label="NPT-Archiv · Zur Startseite" ${page==='home'?'aria-current="page"':''}><img class="brand-image" src="./icons/brand.png" width="112" height="80" alt=""></button><div class="brand-sub">NPT-Archiv</div><nav aria-label="Hauptnavigation">${nav()}</nav><div class="aside-bottom">${navItem('recovery','↺','Sicherung & Hilfe')}<div class="aside-meta"><strong><span class="local-dot"></span>Patienteninhalte bleiben lokal</strong>Version ${APP_VERSION}</div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Digitale NPT &nbsp; / &nbsp; <b>${names[page]}</b></div><div class="topbar-tools">${archive ? pill(sourceFolderName, archive.snapshot.readOnly ? 'warn' : '')+modeView() : selectedFolder ? pill(selectedFolder.name+' · noch nicht geöffnet','warn') : pill('Kein Archiv geöffnet','warn')}</div></header>${busy ? `<div class="busybar" role="status">${escape(busyMessage)}</div>` : ''}<main>${archive?.snapshot.manifest.syntheticOnly?'<div class="note good">Übungsbibliothek · erfundene Daten</div>':''}${lockNotice}${(!archive && !['home','storage','recovery'].includes(page)) ? archiveSetupView() : views[page]() }</main></div></div>`;
   $('main').dataset.page=page;$('main').dataset.enter=String(enteringPage);
   for(const node of document.querySelectorAll('main details'))if(openDetails.includes(node.id||node.querySelector(':scope > summary')?.textContent))node.open=true;
   bind();if($('.patient-matches'))$('.patient-matches').scrollTop=patientScroll;
@@ -136,7 +137,15 @@ function render() {
 }
 async function releaseWriter(){if(releaseLock){releaseLock();releaseLock=null;await lockCompletion;}writer=false;singleWriter=false;}
 function modeView(){
-  return `<section class="mode-bar" aria-label="Arbeitsmodus"><div><strong>${archive.snapshot.readOnly||saveFeedback?.needsCheck?'Nur ansehen · Prüfung erforderlich':writer&&singleWriter?'Bearbeiten':writer?'Bearbeiten freigeben':'Nur ansehen'}</strong><small>${writer?'Nur eine Person darf die Bibliothek bearbeiten.':'Suchen, Berichte und CSV-Export sind ohne Schreibfreigabe möglich.'}</small></div><div class="actions"><button id="refresh-view" ${busy||archive.snapshot.readOnly||saveFeedback?.needsCheck?'disabled':''}>Ansicht aktualisieren</button>${writer?'<button id="stop-editing">Bearbeiten beenden</button>':`<button id="enable-editing" ${archive.snapshot.readOnly||saveFeedback?.needsCheck?'disabled':''}>Bearbeiten</button>`}</div>${writer&&!singleWriter?'<label class="check"><input id="single-writer" type="checkbox">Niemand sonst bearbeitet gerade diese Bibliothek, auch an anderen PCs.</label>':''}${lockError?`<p class="note" role="alert">${escape(lockError)}</p>`:''}</section>`;
+  const editing=writer&&singleWriter&&!archive.snapshot.readOnly&&!saveFeedback?.needsCheck,blocked=busy||archive.snapshot.readOnly||saveFeedback?.needsCheck;
+  const label=editing?'Bearbeitungs-Modus':'Ansichts-Modus';
+  const icon=editing?'<path d="m4 16 11-11 4 4L8 20H4zM13 7l4 4"/>':'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>';
+  return `<button id="mode-toggle" class="mode-toggle mode-${editing?'edit':'view'}" data-mode="${editing?'edit':'view'}" aria-label="${label} · ${editing?'In den Ansichts-Modus wechseln':'In den Bearbeitungs-Modus wechseln'}" ${editing?'':'aria-haspopup="dialog"'} ${blocked?'disabled':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${icon}</svg>${label}</button><button id="refresh-view" class="topbar-refresh" title="Ansicht aktualisieren" aria-label="Ansicht aktualisieren" ${blocked?'disabled':''}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5 7a8 8 0 0 1 13-1l2 2M4 16l2 2a8 8 0 0 0 13-1"/></svg></button>`;
+}
+function openEditDialog(){
+  if(busy||!archive||archive.snapshot.readOnly||saveFeedback?.needsCheck)return;
+  const dialog=$('#edit-mode-dialog');$('#single-writer').checked=false;$('#confirm-editing').disabled=true;$('#edit-mode-error').textContent='';$('#edit-mode-error').hidden=true;
+  dialog.showModal();$('#single-writer').focus();
 }
 function saveFeedbackView(){
   if(!saveFeedback&&!archive.snapshot.readOnly)return '';
@@ -163,11 +172,12 @@ async function refreshView(announce=true){
   if(announce)notice('Ansicht aktualisiert.');
 }
 async function enableEditing(){
+  if(!$('#edit-mode-dialog').open||!$('#single-writer').checked)fail('Bitte die Einzelbearbeitung bestätigen.');
   if(archive.snapshot.readOnly||saveFeedback?.needsCheck)fail('Zuerst die Verbindung und Bibliothek erneut prüfen.');
   await permission(archive.storage.handle,'readwrite',true);lockError='';
   await lockFor(archive.snapshot.manifest.archiveId);
   if(!writer){lockError='Bearbeiten ist nicht verfügbar: Ein anderer Tab bearbeitet die Bibliothek bereits oder der Browser unterstützt die Schreibsperre nicht. Nur ansehen bleibt möglich.';return;}
-  try{await refreshView(false);}catch(error){await releaseWriter();throw error;}
+  try{await refreshView(false);if(!writer||archive.snapshot.readOnly||saveFeedback?.needsCheck)fail('Die Bibliothek muss vor dem Bearbeiten geprüft werden.');singleWriter=true;return true;}catch(error){await releaseWriter();throw error;}
 }
 async function stopEditing(){
   if(rows.length&&!window.confirm('Nicht gespeicherte Importdateien verwerfen und Bearbeiten beenden?'))return;
@@ -206,7 +216,7 @@ function homeView(){
 }
 
 function storageView() {
-  if(archive)return `<section class="card" id="active-library"><h1>Eine Bibliothek ist bereits geöffnet</h1><dl class="provenance section-spacer"><dt>Ausgewählter Ordner</dt><dd class="filename"><strong>${escape(sourceFolderName)}</strong></dd></dl><p class="quiet">Der Browser zeigt den Ordnernamen; der vollständige Laufwerks- oder Netzwerkpfad ist für die App nicht verfügbar.</p><button id="close-library">Bibliothek schließen</button></section>`;
+  if(archive)return `<section class="card" id="active-library"><h1>Eine Bibliothek ist bereits geöffnet</h1><dl class="provenance section-spacer"><dt>Ausgewählter Ordner</dt><dd class="filename"><strong>${escape(sourceFolderName)}</strong></dd></dl><button id="close-library">Bibliothek schließen</button></section>`;
   return `<section class="card"><div class="actions"><button id="open-folder" class="primary" ${!canOpen(c)||busy?'disabled':''}>Meine Bibliothek öffnen</button><button id="create-folder" ${!canOpen(c)||busy?'disabled':''}>Neue Bibliothek anlegen</button></div>${folderAccessNotice()}</section>
   ${selectedFolderCard('import')}
   ${selectedFolder?`<section class="card"><h2>Ausgewählten Ordner prüfen (optional)</h2><button id="probe-folder" ${!canOpen(c)||busy?'disabled':''}>Schreib- und Leseprüfung starten</button>${busy&&probeProgress?`<p role="status" class="quiet section-spacer">${escape(probeProgress)}…</p>`:''}${lastProbe?`<div class="note good">${escape(lastProbe)}</div>`:''}${probeError?`<div class="note error" role="alert"><strong>${escape(probeError.message)}</strong><details><summary>Technische Einzelheiten</summary><pre>${escape(probeError.details||'')}</pre></details></div>`:''}</section>`:''}`;
@@ -220,7 +230,7 @@ function exportButton(kind) {
 }
 function exportSelectionBar(kind) {
   const ids=viewExportIds[kind],selected=exportSelections[kind],visible=new Set(ids),hidden=[...selected].filter(id=>!visible.has(id)).length;
-  return `<div class="export-selection"><label class="check"><input type="checkbox" id="export-all-${kind}" data-export-all="${kind}" ${!ids.length?'disabled':''} ${ids.length&&ids.every(id=>selected.has(id))?'checked':''}>Alle gefilterten Treffer auswählen (${ids.length})</label><span role="status">${selected.size} ausgewählt${hidden?` · ${hidden} außerhalb der aktuellen Filter`:''}</span>${selected.size?`<button class="link" data-export-clear="${kind}">Auswahl aufheben</button>`:''}</div>${kind==='patients'?'<p class="quiet">CSV: alle Untersuchungen der ausgewählten Patienten, einschließlich ausgeschlossener und anderer Untersuchungsarten.</p>':'<p class="quiet">CSV: ausgewählte Untersuchungen, jeweils mit Archivstatus und allen Originalfeldern der gewählten Fassung.</p>'}`;
+  return `<div class="export-selection"><label class="check"><input type="checkbox" id="export-all-${kind}" data-export-all="${kind}" ${!ids.length?'disabled':''} ${ids.length&&ids.every(id=>selected.has(id))?'checked':''}>Alle gefilterten Treffer auswählen (${ids.length})</label><span role="status">${selected.size} ausgewählt${hidden?` · ${hidden} außerhalb der aktuellen Filter`:''}</span>${selected.size?`<button class="link" data-export-clear="${kind}">Auswahl aufheben</button>`:''}</div>`;
 }
 async function downloadCsv(kind,ids) {
   await permission(archive.storage.handle,'read',true);
@@ -287,22 +297,25 @@ function completionView(){
 function originalCard(a) {
   return `<div class="cap-row"><div><strong class="filename">${escape(a.name)}</strong><small>${a.kind==='pdf'?'Originalbericht':'Originale CSV-Datei'}</small><details><summary>Herkunft der Datei</summary><p class="quiet">${escape(a.note||'Bei der Übernahme ausdrücklich zugeordnet.')}</p><p class="mono">SHA-256: ${escape(a.hash)}</p><p class="quiet">${escape(a.method)}</p></details></div><div class="actions">${a.kind==='pdf'?`<button data-report="${a.id}">Bericht ansehen</button>`:''}<button data-download="${a.id}">Herunterladen</button></div></div>`;
 }
+function importedFieldsView(document){
+  const groups=importedFieldGroups(document);
+  const versionPreview=group=>group.versionKeys.filter(key=>importedCellState(document,key)==='value').slice(0,2).map(key=>`${importedFieldLabel(key)}: ${document.raw[key].raw}`).join(' · ');
+  return `<section id="assessment-data"><h2>Importierte Angaben & Testergebnisse</h2><p class="quiet">Alle ${document.headers.length} Felder der gewählten CSV-Fassung, unverändert. Versionen und Kennzeichen erscheinen so, wie sie exportiert wurden. Zahlen allein bestätigen keine vollständige Testdurchführung.</p>${groups.map(group=>`<details class="card imported-group" id="imported-${group.id}"><summary><span>${escape(group.label)}</span><small>${group.presentCount} von ${group.keys.length} Feldern befüllt</small>${versionPreview(group)?`<span class="source-version-preview">${escape(versionPreview(group))}</span>`:''}</summary><div class="table-wrap section-spacer"><table class="imported-values"><thead><tr><th>Angabe / Messwert</th><th>Importierter Wert</th></tr></thead><tbody>${group.keys.map(key=>{const label=importedFieldLabel(key),status=importedCellState(document,key);return `<tr data-source-field="${escape(key)}"><td><strong>${escape(label)}</strong>${label!==key?`<small class="source-field-key">${escape(key)}</small>`:''}${document.unknownFields?.includes(key)?'<small>Zusätzliches Feld aus dem Export</small>':''}</td><td>${status==='missing'||status==='absent'?'<em class="muted">Nicht überliefert</em>':status==='empty'?'<em class="muted">Leer exportiert (leere Zeichenfolge)</em>':`<div class="imported-value-text">${escape(document.raw[key].raw)}</div>`}</td></tr>`;}).join('')}</tbody></table></div></details>`).join('')}</section>`;
+}
+
 function detailView() {
   if(detailError)return `<section class="card"><h1>Untersuchung konnte nicht geöffnet werden</h1><p>${escape(detailError)}</p><button data-nav="recovery">Zur Prüfung & Hilfe</button></section>`;
   const a=detailData?.id===currentId?detailData:state().assessments[currentId];if(!a)return '<p>Untersuchung nicht gefunden.</p>';
   const r=selectedRevision(a),d=r?.document;if(d?.projected)return '<div class="card loading">Die Untersuchung wird geöffnet…</div>';
   const groups=new Map();for(const key of d?.headers??[]){const family=key.startsWith('demographics_')?'demographics':key.split('_')[0];if(!groups.has(family))groups.set(family,[]);groups.get(family).push(key);}
-  const measures=SUMMARY_MEASURES.filter(([key])=>d?.raw[key]&&!d.raw[key].missing&&d.raw[key].raw!=='');
-  const notes=(d?.headers??[]).filter(k=>/(?:notes|note)(?:_|$)/.test(k)&&d.raw[k].raw);
   return `<div class="heading"><div><div class="eyebrow">${fmtDate(d?.date)}</div><h1>${escape(patientText(a.patientId))}</h1><p class="muted">Aufenthalt ${escape(a.stayId)} · ${escape(d?.timeText||'Uhrzeit nicht angegeben')}</p><p class="assessment-type">${escape(assessmentTypeLabel(a.assessmentTypeId))}</p></div><div class="actions"><button data-nav="assessments">← Alle Untersuchungen</button>${a.patientId?`<button data-patient="${a.patientId}">Patientenverlauf ansehen</button>`:''}</div></div>
   <section class="card" id="assessment-inclusion">${isExcluded(a)?'<div class="note"><strong>Dieser Datensatz ist ausgeschlossen.</strong> Originaldateien und Verlauf bleiben erhalten.</div>':''}<button id="toggle-exclusion" ${!writable()?'disabled':''}>${isExcluded(a)?'Datensatz wieder einschließen':'Datensatz ausschließen'}</button></section>
   <section class="card"><h2>Originalberichte</h2>${a.attachments.map(originalCard).join('')||'<p class="muted">Für diese Untersuchung ist noch kein Bericht hinterlegt. Sie können ihn später über „Importieren“ ergänzen.</p>'}</section>
-  <section class="card"><h2>Exportierte Messwerte</h2><p class="quiet">Originalwerte ohne Neuberechnung. Hinweise zu Durchführung und Variante beachten.</p>${measures.length?`<div class="table-wrap"><table><thead><tr><th>Verfahren / Messwert</th><th>Exportierter Wert</th><th>Hinweise aus der Quelle</th></tr></thead><tbody>${measures.map(([key,label,unit,family])=>`<tr><td>${escape(label)}</td><td><strong>${escape(d.raw[key].raw)}</strong><small>${escape(unit)}</small></td><td>${measureContext(d,family).map(escape).join('<br>')}</td></tr>`).join('')}</tbody></table></div>`:'<p>Für diese Übersicht sind keine Messwerte exportiert. Fehlende Werte werden nicht als Null behandelt.</p>'}</section>
-  ${notes.length?`<section class="card"><h2>Notizen aus dem Export</h2>${notes.map(key=>`<details><summary>${escape(key)}</summary><p class="source-note">${escape(d.raw[key].raw)}</p></details>`).join('')}</section>`:''}
+  ${importedFieldsView(d)}
   <div class="grid2"><details class="card"><summary>Zuordnung ändern</summary><label>iMed Patienten-ID<select id="reassign-patient">${patientOptions(a.patientId??'unresolved')}</select></label><label class="section-spacer">Aufenthalts-ID<input id="reassign-stay" inputmode="numeric" value="${escape(a.stayId)}" maxlength="100"></label><label class="section-spacer">Untersuchungsart<select id="reassign-type">${typeOptions(a.assessmentTypeId??'')}</select></label><label class="section-spacer">Grund für die Änderung<textarea id="reassign-reason" maxlength="2000"></textarea></label><button id="save-assignment" class="section-spacer" ${!writable()?'disabled':''}>Änderung speichern</button></details>
   <details class="card"><summary>CSV-Dateien & Fassungen (${a.revisions.length})</summary><p class="quiet section-spacer">Alle Fassungen bleiben erhalten.</p><label>Für die Anzeige ausgewählte Fassung<select id="selected-revision">${a.revisions.map((v,i)=>option(v.id,`${i+1} · ${v.original.name} · ${v.reason}`,a.selectedRevisionId)).join('')}</select></label><button id="select-revision" class="section-spacer" ${!writable()?'disabled':''}>Fassung auswählen</button>${a.revisions.map(v=>originalCard(v.original)).join('')}</details></div>
-  <details class="card"><summary>Alle unveränderten Originalfelder (${d?.headers.length??0})</summary><p class="quiet section-spacer">„Nicht überliefert“ und eine exportierte leere Zeichenfolge bleiben verschieden. Unbekannte Felder und exportierte Bewertungs-/Variantenversionen sind erhalten.</p>${[...groups].map(([family,keys])=>`<details><summary>${escape(family.toUpperCase())} · ${keys.length} Felder</summary><div class="table-wrap section-spacer"><table class="value-table"><thead><tr><th>Originalfeld</th><th>Originalwert</th><th>Zellstatus</th></tr></thead><tbody>${keys.map(key=>{const cell=d.raw[key];return `<tr><td>${escape(key)}</td><td>${cell.missing?'<em class="muted">Nicht überliefert</em>':cell.raw===''?'<em class="muted">Leere Zeichenfolge</em>':escape(cell.raw)}</td><td>${cell.missing?'Unquotiert leer':cell.quoted?'Quotiert':'Text'}${d.unknownFields.includes(key)?' · unbekanntes Feld':''}</td></tr>`;}).join('')}</tbody></table></div></details>`).join('')}</details>
-  <details class="card"><summary>Änderungsverlauf & Herkunft</summary><dl class="provenance section-spacer"><dt>Quellsitzung</dt><dd class="mono">${escape(a.sessionId)}</dd><dt>Erzeugerversion</dt><dd>Im CSV nicht angegeben</dd><dt>Importadapter</dt><dd>${escape(d?.parserVersion)}</dd><dt>Originaldatum</dt><dd>${escape(d?.dateText||'Nicht angegeben')}</dd><dt>Zeitzone</dt><dd>Im CSV nicht angegeben</dd></dl>${state().history.filter(h=>h.operations.some(o=>o.assessmentId===a.id||o.assessment?.id===a.id)).map(h=>`<div class="history-entry"><strong>${escape(h.createdAt)}</strong><small>${escape(h.actor||'Ohne Bearbeiterkürzel')}</small>${h.operations.filter(o=>o.assessmentId===a.id||o.assessment?.id===a.id).map(o=>`<p class="quiet">${escape(({ 'assessment.create':'Untersuchung angelegt','revision.add':'Quelldatei/Fassung hinzugefügt','revision.select':'Anzeigefassung ausgewählt','patient.link':'Patientenzuordnung geändert','stay.update':'Aufenthalts-ID geändert','assessment.type.set':'Untersuchungsart zugeordnet','assessment.exclusion.set':o.excluded?'Datensatz ausgeschlossen':'Datensatz wieder eingeschlossen','attachment.add':'Bericht ergänzt','attachment.link':'Bericht zugeordnet' })[o.type]||'Eintrag ergänzt')} ${escape(o.reason||o.revision?.reason||'')}${o.assessmentTypeId?' · '+escape(assessmentTypeLabel(o.assessmentTypeId)):''}</p>`).join('')}</div>`).join('')}</details>`;
+  <details class="card"><summary>Technische Originalansicht (${d?.headers.length??0} Felder)</summary><p class="quiet section-spacer">„Nicht überliefert“ und eine exportierte leere Zeichenfolge bleiben verschieden. Unbekannte Felder und exportierte Bewertungs-/Variantenversionen sind erhalten.</p>${[...groups].map(([family,keys])=>`<details><summary>${escape(family.toUpperCase())} · ${keys.length} Felder</summary><div class="table-wrap section-spacer"><table class="value-table"><thead><tr><th>Originalfeld</th><th>Originalwert</th><th>Zellstatus</th></tr></thead><tbody>${keys.map(key=>{const cell=d.raw[key];return `<tr><td>${escape(key)}</td><td>${cell.missing?'<em class="muted">Nicht überliefert</em>':cell.raw===''?'<em class="muted">Leere Zeichenfolge</em>':escape(cell.raw)}</td><td>${cell.missing?'Unquotiert leer':cell.quoted?'Quotiert':'Text'}${d.unknownFields.includes(key)?' · unbekanntes Feld':''}</td></tr>`;}).join('')}</tbody></table></div></details>`).join('')}</details>
+  <details class="card"><summary>Änderungsverlauf & Herkunft</summary><dl class="provenance section-spacer"><dt>Quellsitzung</dt><dd class="mono">${escape(a.sessionId)}</dd><dt>Erzeugerversion</dt><dd>${escape(d?.producerVersion??'Im CSV nicht angegeben')}</dd><dt>Importadapter</dt><dd>${escape(d?.parserVersion)}</dd><dt>Originaldatum</dt><dd>${escape(d?.dateText||'Nicht angegeben')}</dd><dt>Zeitzone</dt><dd>Im CSV nicht angegeben</dd></dl>${state().history.filter(h=>h.operations.some(o=>o.assessmentId===a.id||o.assessment?.id===a.id)).map(h=>`<div class="history-entry"><strong>${escape(h.createdAt)}</strong><small>${escape(h.actor||'Ohne Bearbeiterkürzel')}</small>${h.operations.filter(o=>o.assessmentId===a.id||o.assessment?.id===a.id).map(o=>`<p class="quiet">${escape(({ 'assessment.create':'Untersuchung angelegt','revision.add':'Quelldatei/Fassung hinzugefügt','revision.select':'Anzeigefassung ausgewählt','patient.link':'Patientenzuordnung geändert','stay.update':'Aufenthalts-ID geändert','assessment.type.set':'Untersuchungsart zugeordnet','assessment.exclusion.set':o.excluded?'Datensatz ausgeschlossen':'Datensatz wieder eingeschlossen','attachment.add':'Bericht ergänzt','attachment.link':'Bericht zugeordnet' })[o.type]||'Eintrag ergänzt')} ${escape(o.reason||o.revision?.reason||'')}${o.assessmentTypeId?' · '+escape(assessmentTypeLabel(o.assessmentTypeId)):''}</p>`).join('')}</div>`).join('')}</details>`;
 }
 
 let comparisonKey = '';
@@ -312,6 +325,14 @@ function selectPatient(id) {
 }
 function setPatientResultsOpen(open) {
   patientResultsOpen=open;const panel=$('#patient-search-results');if(panel)panel.hidden=!open;
+}
+function comparisonTable(visits,keys){
+  if(!keys.length)return '<p class="quiet section-spacer">Keine passenden Messwerte. Bitte die Suche ändern.</p>';
+  const groups=groupedMeasurementFields(keys),units=new Map(SUMMARY_MEASURES.map(([key,,unit])=>[key,unit]));
+  return `<div class="table-wrap section-spacer comparison-scroll" tabindex="0" role="region" aria-label="Vergleich der gewählten Messwerte"><table class="comparison-matrix"><thead><tr><th scope="col">Messwert</th>${visits.map(a=>`<th scope="col" class="comparison-session">${fmtDate(patientValueDocs.get(a.id)?.date)}<small>Aufenthalt ${escape(a.stayId)}</small></th>`).join('')}</tr></thead>${groups.map(group=>`<tbody aria-label="${escape(group.label)}"><tr class="comparison-group"><th scope="rowgroup" colspan="${visits.length+1}">${escape(group.label)}</th></tr>${group.fields.map(key=>`<tr data-comparison-field="${escape(key)}"><th scope="row"><strong>${escape(importedFieldLabel(key))}</strong><small class="source-field-key">${escape(key)}</small>${units.has(key)?`<small>${escape(units.get(key))}</small>`:''}</th>${visits.map(a=>{
+    const doc=patientValueDocs.get(a.id),cell=doc?.raw&&Object.hasOwn(doc.raw,key)?doc.raw[key]:null,present=cell&&!cell.missing&&cell.raw!=='',hints=performanceContext(doc,key).filter(text=>text!=='Durchführung/Vollständigkeit aus diesem Wert allein nicht gesichert');
+    return `<td data-comparison-assessment="${a.id}"><strong class="comparison-value">${present?escape(cell.raw):'—'}</strong>${present&&!isNumericSourceValue(cell.raw)?'<small>Kein numerischer Wert in dieser Quelle</small>':''}${hints.length?`<details class="comparison-context"><summary>Hinweise</summary>${hints.map(text=>`<p>${escape(text)}</p>`).join('')}</details>`:''}</td>`;
+  }).join('')}</tr>`).join('')}</tbody>`).join('')}</table></div>`;
 }
 function patientsView() {
   const all=Object.values(state().assessments),stats=new Map();
@@ -323,14 +344,14 @@ function patientsView() {
   const p=state().patients[currentPatient];
   const visits=p?all.filter(a=>a.patientId===p.id&&matchesAssessmentType(a,filterType)).sort((a,b)=>(selectedRevision(a)?.document.date??'9999').localeCompare(selectedRevision(b)?.document.date??'9999')):[];
   const comparisonVisits=visits.filter(a=>!isExcluded(a));
-  const comparisonFields=performanceFields(comparisonVisits);if(!comparisonFields.includes(comparisonKey))comparisonKey=comparisonFields[0]??'';
-  const comparisonOptions=comparisonFields.filter(key=>key===comparisonKey||fieldLabel(key).toLocaleLowerCase('de').includes(comparisonQuery.toLocaleLowerCase('de'))),unit=SUMMARY_MEASURES.find(m=>m[0]===comparisonKey)?.[2]??'',shown=list.slice(0,20);
+  const comparisonFields=performanceFields(comparisonVisits);if(comparisonKey&&!comparisonFields.includes(comparisonKey))comparisonKey='';
+  const comparisonOptions=comparisonFields.filter(key=>key===comparisonKey||fieldLabel(key).toLocaleLowerCase('de').includes(comparisonQuery.toLocaleLowerCase('de'))),shown=list.slice(0,20);
   viewExportIds.patients=list.map(patient=>patient.id);
   return `<div class="heading"><div><h1>Patienten</h1></div>${exportButton('patients')}</div>${exportSelectionBar('patients')}<section class="card" id="patient-search-card"><div class="form-row"><label>Patient suchen<input id="patient-search" type="search" value="${escape(patientQuery)}" placeholder="iMed Patienten-ID beginnen…" autocomplete="off" aria-controls="patient-search-results" aria-describedby="patient-result-count"></label><label>Untersuchungsart<select id="patient-type-filter">${typeOptions(filterType,true)}</select></label></div>
   <div id="patient-search-results" ${patientResultsOpen?'':'hidden'}><p class="quiet patient-result-count" id="patient-result-count" role="status" aria-live="polite">${list.length?`${list.length} passende Patienten${list.length>20?' · Erste 20 Treffer; ID weiter eingrenzen.':''}`:'Keine passenden Patienten. ID oder Untersuchungsart ändern.'}</p><ul class="patient-matches" aria-label="Passende Patienten">${shown.map(patient=>{const summary=stats.get(patient.id);return `<li class="${exportSelections.patients.has(patient.id)?'export-selected':''}"><span class="patient-export-check">${exportCheckbox('patients',patient.id,'Patient '+patient.identifier)}</span><button type="button" data-select-patient="${patient.id}" data-identifier="${escape(patient.identifier)}" ${patient.id===currentPatient?'aria-current="true"':''}><span><strong>${escape(patient.identifier)}</strong>${patient.label?`<small>${escape(patient.label)}</small>`:''}</span><span class="patient-match-summary">${summary?`${summary.count} ${summary.count===1?'Untersuchung':'Untersuchungen'}${summary.latest?' · zuletzt '+fmtDate(summary.latest):''}`:'Noch keine Untersuchung'}<span aria-hidden="true"> →</span></span></button></li>`;}).join('')}</ul></div>
   <details><summary>Neuen Patienten hinzufügen</summary><form id="create-patient" class="section-spacer"><div class="form-row"><label>iMed Patienten-ID<input name="identifier" inputmode="numeric" pattern="[0-9]+" maxlength="100" required></label><button type="submit" ${!writable()?'disabled':''}>Patient speichern</button></div></form></details></section>
   ${p?`<section class="card"><div class="heading patient-history-title"><h2 id="patient-history-heading" tabindex="-1">Patient ${escape(p.identifier)}${p.label?' · '+escape(p.label):''}</h2><label class="check">${exportCheckbox('patients',p.id,'Patient '+p.identifier,'history-')}Für CSV auswählen</label></div><p class="muted">${visits.length} passende Untersuchungen · ${new Set(visits.map(a=>a.stayId)).size} Aufenthalte</p>${visits.map(a=>`<div class="history-entry"><strong>${fmtDate(selectedRevision(a)?.document.date)} · Aufenthalt ${escape(a.stayId)}</strong>${isExcluded(a)?pill('Ausgeschlossen','warn'):''}<p class="assessment-type">${escape(assessmentTypeLabel(a.assessmentTypeId))}</p><small>${a.attachments.length} Berichte · ${a.revisions.length} gespeicherte Fassungen</small><div class="actions section-spacer"><button class="link" data-detail="${a.id}">Untersuchung ansehen →</button>${reportActions(a)}</div></div>`).join('')||'<p>Für diesen Patienten gibt es noch keine passenden Untersuchungen.</p>'}</section>
-  <details class="card" id="patient-comparison"><summary>Messwerte vergleichen</summary><p class="quiet section-spacer">Originalwerte ohne Neuberechnung. Varianten und unvollständige Ergebnisse beachten.</p>${comparisonFields.length?`<label>Messwert suchen<input id="comparison-search" type="search" value="${escape(comparisonQuery)}" placeholder="z. B. VLMT, MoCA oder Feldname"></label><label class="section-spacer">Messwert<select id="comparison-measure">${measurementOptions(comparisonOptions,comparisonKey)}</select></label>${patientValueKey===currentPatientValueKey()?`<div class="table-wrap section-spacer"><table><thead><tr><th>Datum / Aufenthalt</th><th>${escape(fieldLabel(comparisonKey))}${unit?' ('+escape(unit)+')':''}</th><th>Hinweise aus dem Export</th></tr></thead><tbody>${comparisonVisits.map(a=>{const d=patientValueDocs.get(a.id),cell=d?.raw[comparisonKey],present=cell&&!cell.missing&&cell.raw!=='';return `<tr><td>${fmtDate(d?.date)}<small>${escape(a.stayId)}</small></td><td><strong>${present?escape(cell.raw):'—'}</strong>${present&&!isNumericSourceValue(cell.raw)?'<small>Kein numerischer Wert in dieser Quelle</small>':''}</td><td>${performanceContext(d,comparisonKey).map(escape).join('<br>')}</td></tr>`;}).join('')}</tbody></table></div>`:'<button id="load-patient-values" class="section-spacer">Exportierte Messwerte laden</button>'}`:'<p>Für diese Auswahl sind keine numerischen Leistungswerte vorhanden.</p>'}<p class="quiet section-spacer">Ausgeschlossene Untersuchungen werden hier ausgelassen. Fehlende Werte bleiben leer.</p></details>`:`<section class="card empty"><div class="empty-icon">♧</div><h2>Wessen Verlauf möchten Sie ansehen?</h2></section>`}`;
+  <details class="card" id="patient-comparison"><summary>Messwerte vergleichen</summary><p class="quiet section-spacer">Originalwerte ohne Neuberechnung. Varianten und unvollständige Ergebnisse beachten.</p>${comparisonFields.length?`<label>Messwert suchen<input id="comparison-search" type="search" value="${escape(comparisonQuery)}" placeholder="z. B. VLMT, MoCA oder Feldname"></label><label class="section-spacer">Messwert<select id="comparison-measure">${option('','Alle Messwerte',comparisonKey)}${measurementOptions(comparisonOptions,comparisonKey)}</select></label>${patientValueKey===currentPatientValueKey()?comparisonTable(comparisonVisits,comparisonKey?[comparisonKey]:comparisonOptions):'<button id="load-patient-values" class="section-spacer">Exportierte Messwerte laden</button>'}`:'<p>Für diese Auswahl sind keine numerischen Leistungswerte vorhanden.</p>'}<p class="quiet section-spacer">Ausgeschlossene Untersuchungen werden hier ausgelassen. Fehlende Werte bleiben leer.</p></details>`:''}`;
 
 }
 
@@ -404,13 +425,11 @@ function bind() {
   });
   document.querySelectorAll('[data-export-clear]').forEach(button=>button.onclick=()=>{exportSelections[button.dataset.exportClear].clear();render();});
   document.querySelectorAll('[data-export-csv]').forEach(button=>button.onclick=()=>{const kind=button.dataset.exportCsv,ids=[...exportSelections[kind]];run(()=>downloadCsv(kind,ids));});
-  if($('#enable-editing'))$('#enable-editing').onclick=()=>run(enableEditing);
-  if($('#stop-editing'))$('#stop-editing').onclick=()=>run(stopEditing);
+  if($('#mode-toggle'))$('#mode-toggle').onclick=()=>{if(writer&&singleWriter&&!archive.snapshot.readOnly&&!saveFeedback?.needsCheck)run(stopEditing);else openEditDialog();};
   if($('#refresh-view'))$('#refresh-view').onclick=()=>run(refreshView);
   if($('#recheck-connection'))$('#recheck-connection').onclick=()=>run(()=>checkConnection());
   if($('#reselect-library'))$('#reselect-library').onclick=()=>run(()=>checkConnection(true));
   if($('#next-patient'))$('#next-patient').onclick=()=>{resetImport();lastImportReceipt=null;saveFeedback=null;page='import';render();window.scrollTo({top:0});};
-  if($('#single-writer'))$('#single-writer').onchange=e=>{singleWriter=e.target.checked;render();};
   if($('#open-folder'))$('#open-folder').onclick=()=>run(()=>openFolder(false,page==='storage'?'assessments':page));
   if($('#create-folder'))$('#create-folder').onclick=()=>run(()=>openFolder(true,page==='storage'?'assessments':page));
   if($('#activate-folder'))$('#activate-folder').onclick=()=>{const target=$('#activate-folder').dataset.activateFolder;run(()=>activateSelected(target));};
@@ -495,6 +514,23 @@ function bind() {
   if($('#select-revision'))$('#select-revision').onclick=()=>{const revisionId=$('#selected-revision').value;run(async()=>{await commit([{type:'revision.select',assessmentId:currentId,revisionId}]);notice('Revisionsauswahl dauerhaft gespeichert.');});};
   document.querySelectorAll('[data-link-attachment]').forEach(b=>b.onclick=()=>{const parent=b.closest('[data-unlinked]');const assessmentId=parent.querySelector('[data-link-target]').value;const note=parent.querySelector('[data-link-note]').value;run(async()=>{await commit([{type:'attachment.link',attachmentId:b.dataset.linkAttachment,assessmentId,note}]);notice('Anhang mit Zuordnungshistorie gespeichert.');});});
 }
+const editDialog=$('#edit-mode-dialog');
+function setEditDialogBusy(value){editDialogBusy=value;$('#single-writer').disabled=value;$('#cancel-editing').disabled=value;$('#confirm-editing').disabled=value||!$('#single-writer').checked;}
+$('#single-writer').onchange=()=>{$('#confirm-editing').disabled=editDialogBusy||!$('#single-writer').checked;};
+$('#cancel-editing').onclick=()=>editDialog.close();
+editDialog.oncancel=event=>{if(editDialogBusy)event.preventDefault();};
+editDialog.onclose=()=>{if(!editDialog.open&&!editDialogBusy){$('#single-writer').checked=false;$('#confirm-editing').disabled=true;$('#mode-toggle')?.focus({preventScroll:true});}};
+$('#confirm-editing').onclick=async()=>{
+  if(busy||editDialogBusy||!editDialog.open||!$('#single-writer').checked)return;
+  setEditDialogBusy(true);$('#edit-mode-error').hidden=true;
+  await run(async()=>{
+    try{const enabled=await enableEditing();if(enabled)editDialog.close();else{const error=$('#edit-mode-error');error.textContent=lockError;error.hidden=false;}}
+    catch(cause){const error=$('#edit-mode-error');error.textContent=cause.message||'Bearbeitungs-Modus konnte nicht aktiviert werden.';error.hidden=false;}
+    finally{setEditDialogBusy(false);}
+  });
+  if(!editDialog.open){$('#single-writer').checked=false;$('#confirm-editing').disabled=true;$('#mode-toggle')?.focus({preventScroll:true});}
+};
+
 function clearReport(){pendingReport=null;$('#report-frame').src='about:blank';}
 $('#close-report').onclick=()=>{clearReport();$('#report-dialog').close();};
 // A queued close event from the previous report must not clear a newly opened one.

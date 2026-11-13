@@ -24,7 +24,7 @@ const runtime=await walk(join(root,'dist'));
 if(runtime.some(e=>/\.(csv|pdf)$/.test(e.name)||/^(objects|records|fixtures)\//.test(e.name)))throw Error('Unexpected data in static release.');
 const source=[];
 for(const name of ['README.md','package.json','package-lock.json','.gitignore','.gitattributes','vercel.json'])source.push({path:join(root,name),name});
-for(const directory of ['src','scripts','tests','docs'])source.push(...(await walk(join(root,directory),'',name=>directory==='src'?/\.(js|css|html)$/.test(name)||name==='export-columns.json':directory==='docs'?/\.(md|html)$/.test(name):name.endsWith('.mjs'))).map(e=>({...e,name:`${directory}/${e.name}`})));
+for(const directory of ['src','scripts','tests','docs'])source.push(...(await walk(join(root,directory),'',name=>directory==='src'?/\.(js|css|html)$/.test(name)||name==='export-columns.json'||name==='favicon.ico'||name==='site.webmanifest'||/^icons\/(?:brand|icon-(?:16|32|48|180|192|256|512))\.png$/.test(name):directory==='docs'?/\.(md|html)$/.test(name):name.endsWith('.mjs'))).map(e=>({...e,name:`${directory}/${e.name}`})));
 const synthetic=['README.md','empty-assessment.csv','revised-same-session.csv','2026-01-15_08-30_SYNTH_00000000-0000-4000-8000-000000000001.csv','2026-01-15_08-30_SYNTH_00000000-0000-4000-8000-000000000001.pdf'];
 for(const name of synthetic){const path=join(root,'fixtures',name);if(!(await lstat(path)).isFile())throw Error('Synthetic fixture must be a regular file');source.push({path,name:`fixtures/${name}`});}
 await zipFiles(join(out,'static-application.zip'),runtime);await zipFiles(join(out,'source-code.zip'),source);

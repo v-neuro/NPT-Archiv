@@ -4,7 +4,7 @@ Only synthetic data was used. The producer app and handoff reference are unchang
 
 ## Automated checks
 
-`npm test`: 95 passing parser/import/durability and File System Access adapter tests. Coverage includes the actual 388-column producer fixture, quoted Unicode/newlines/quotes, BOM/CRLF, numeric zero/negative/decimals, empty versus missing cells, reduced/reordered/future columns, dangerous/duplicate headers, malformed rows, legacy/missing source IDs, invalid dates, oversize input, duplicate/revised/equivalent files, explicit collisions, ambiguous/late PDFs and durable unlinked attachments.
+`npm test`: 101 passing parser/import/durability and File System Access adapter tests. Coverage includes the actual 388-column producer fixture, quoted Unicode/newlines/quotes, BOM/CRLF, numeric zero/negative/decimals, empty versus missing cells, reduced/reordered/future columns, dangerous/duplicate headers, malformed rows, legacy/missing source IDs, invalid dates, oversize input, duplicate/revised/equivalent files, explicit collisions, ambiguous/late PDFs and durable unlinked attachments.
 
 Failure injection exercises original and commit creation/partial writes/close/readback, corrupt/missing originals, incomplete/unknown/forked records, unknown manifest version, initialization over unrelated contents, stale writers and disconnected storage. Earlier accepted state survives. Assignment corrections, numeric stay/patient IDs, selected revisions, exact original bytes and verified copy/restore are reconstructed from disk without browser state. File-handle adapter tests separately cover permission denial/revocation and createWritable/write/close/readback failures.
 
@@ -119,3 +119,21 @@ Results use native buttons, a bounded scrollable list (20 matches with an explic
 ## Version 0.7.1 home screen
 
 Browser regression verifies the home screen on launch, no-library navigation, zero-count active library, logo navigation, total counts including patients without examinations and excluded records, no double-counting source revisions, count-card navigation clearing prior filters, browser-data clearing returning to an empty home, and layout at 390/768/1440 pixels. A 22-patient/66-examination synthetic library matches the home totals. The 95 Node tests and prior import/recovery/report/CSV/backup/security workflow remain the release checks. User explicitly requested publishing the complete current version to v-neuro/NPT-Archiv main after verification.
+
+## Version 0.8.0 complete assessment details
+
+Four additional tests verify every one of the producer fixture's 388 headers appears once in the primary groups, including demographics, versions, flags and notes; version-before-result ordering; blank/default-only assessments without inferred administration; unknown/free-text values, inherited-property-like headers, precise numeric strings and missing/quoted-empty distinctions; and readable labels that keep manual/total/version fields separate. Grouping cannot mutate raw documents.
+
+The browser regression compares every main-view field/cell with the actual synthetic original and revised CSVs, opens demographics/VLMT sections, checks visible version context, preserved open sections after metadata save, and literal HTML-like future notes alongside a zero-valued future measure. Existing patient comparison/filter eligibility remains numeric-only; complete assessment viewing is deliberately independent of it. The original local file had a stray `Ja ` before its first import, which prevented parsing; the prefix was removed while editing the detail view.
+
+## Version 0.8.1 mode toggle and confirmation
+
+Browser regression verifies the mode button is in the top bar, the former information card is absent, state labels/colors differ, and the popup starts unchecked with Fortfahren disabled. Checking alone cannot enable imports; unchecking disables continuation again. Cancel, Escape and repeated opening reset the confirmation and keep viewing. Denied permission is visible inside the popup. A second tab cannot switch to editing while the writer lock is held, then succeeds after the first returns to viewing. Cancelling unsaved-draft discard keeps editing and the draft intact. Popup and top-bar layout are checked at 390/768/1440 pixels. Existing complete assessment/import/export/report/recovery/backup/security tests remain included; Node suite remains 99 tests.
+
+## Version 0.9.0 all-measure comparison and supplied icon
+
+Two icon tests validate original artwork dimensions, every generated square PNG size, ICO directory offsets/sizes/bit depth and exact embedded PNG payloads, and local browser-mode manifest/icon metadata. Source artwork was compared byte-for-byte with the user attachment. Icons are generated on the development Mac; tests/builds consume the checked-in files without sips or other native generation requirements.
+
+Chrome native Page.getAppManifest accepts the local manifest without errors; native image decoding accepts favicon.ico, the 16/32/180 PNGs and the declared 192/512 shortcut icons. The supplied sidebar image loads at its original natural dimensions and remains the home button. Requested copy/placeholder removals are asserted on real pages.
+
+All-measure comparison is the first/default option and its rendered row set equals the numeric options. The browser compares each raw matrix cell against verified synthetic source documents, for the type-filtered visit and for all three patient visits, including zero/missing data and selected revisions. Search reduces the all-mode row set; single-measure mode retains one row. Matrix/page layout is checked at 390/768/1440 pixels. Existing export/PDF/recovery/backup/permissions/no-external-request regression passes. Real managed Windows Edge desktop shortcut creation and its shell icon cache still need the hospital trial; Chrome metadata/decoding is not that test.

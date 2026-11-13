@@ -1,3 +1,43 @@
+# Current checkpoint · 13 November 2026 · version 0.9.0
+
+User requested default/first Alle Messwerte comparison, removal of the unselected-patient card and three exact library/CSV helper texts, and using supplied favicon-red.png as sidebar logo/favicon/desktop shortcut icon. The final branding adjustment centres the logo above the exact tagline NPT-Archiv. User explicitly authorized publishing the complete current version to GitHub main on 13 November 2026.
+
+- Empty comparisonKey represents all; grouped matrix has one field per row, one included/type-matching visit per column, original raw values/zero/missing dashes and expandable source hints. Search narrows all-mode rows; single-field choice remains. Existing verified source loading, numeric eligibility/exclusion and durable data are unchanged.
+- Removed Wessen Verlauf… card and the exact requested folder-path/two CSV-scope explanatory paragraphs. Export behavior remains whole-patient/all-excluded versus explicitly selected sessions as before.
+- Exact original image in src/icons/brand.png replaces sidebar n/wordmark; home click/accessible name retained. Square aspect-preserving PNGs, multi-resolution favicon.ico, Apple touch icon and site.webmanifest bundle local metadata. Browser display/no service worker, no install/offline requirement. create-icons.mjs is Mac development-only; normal build uses checked-in files. Both CSPs permit same-origin manifest; preview MIME types updated. Build and source handoff explicitly include the new assets.
+- 101 Node tests and Chrome regression pass: image dimensions/ICO payloads/local manifest, native favicon/PNG decoding and Page.getAppManifest, all/single/search matrix values compared with real synthetic sources across three visits, copy removals, existing full workflow/security. Native Windows desktop shortcut/cache behavior remains manual hospital acceptance.
+- Local preview http://127.0.0.1:5186 restarted with current MIME handling; hard-refresh ⌘⇧R. Publication target: v-neuro/NPT-Archiv main, with its connected Vercel deployment. Public main was 0.7.1 before this publication. Includes locally completed 0.8.0 details/0.8.1 mode dialog. Source/static/test-kit handoff via npm run export:hospital.
+
+Earlier checkpoints below describe previous releases.
+
+---
+
+# Current checkpoint · 13 November 2026 · version 0.8.1
+
+User requested replacing the confusing edit-mode card with a colored top-bar toggle beside the library name, labelled Ansichts-Modus / Bearbeitungs-Modus, plus an unchecked sole-editor confirmation popup before Fortfahren.
+
+- Removed the card. Top-bar button is turquoise/eye when viewing, corporate red/white/pencil when editing, with explicit labels and adjacent accessible refresh icon. No mode controls without a library; unresolved integrity/save recovery keeps editing disabled.
+- Native modal outside the rerendered app DOM starts unchecked, uses the user's exact statement and disables Fortfahren until checked. The handler also checks the condition. Opening/checking does not acquire the writer lock; continuing requests permission/lock, refreshes, then sets singleWriter. Cancel/Escape keeps viewing; failure stays in the popup. Controls/Escape cannot abandon an in-flight acquisition. Returning to view releases the lock and preserves existing explicit discard confirmation for pending import drafts.
+- Browser regression covers top-bar placement/no card, labels/colors, checkbox required/uncheck/cancel/Escape/reset, denied permission, lock conflict/handover, unsaved-draft cancellation and compact/responsive dialog. Existing full workflow and 99 Node tests remain the release checks.
+- Includes prior locally prepared 0.8.0 complete assessment sections. Preview http://127.0.0.1:5186; hard-refresh ⌘⇧R. Current request is a local UI change; public GitHub/Vercel was 0.7.1 at the beginning of this work. No publication requested in this turn.
+
+Earlier checkpoints below describe previous releases.
+
+---
+
+# Current checkpoint · 13 November 2026 · version 0.8.0
+
+User requested complete imported assessment values, including demographics and test versions alongside numeric results, in collapsible views. The prior primary detail summary used 11 fixed measures; all raw fields were already retained in a lower technical section.
+
+- Main detail now uses imported-fields.js to show every observed selected-revision header once: Demografische Angaben, Angaben zur Untersuchung, named test groups and Weitere importierte Felder. Versions/scoring/entry modes lead the relevant test group, with all numerical/non-numerical results, flags and notes retained. Friendly labels plus exact keys, population counts and source-version previews. No clinical inference/recalculation, original writes or schema/parser/projection change. Missing and quoted-empty remain distinct; original technical cell-status view still exists below.
+- Removed the pre-existing local `Ja ` prefix before the first JavaScript import because it made app.js syntactically invalid. That was the only existing working-tree change when this task began.
+- 99 Node tests cover full-field grouping/immutability/blank assessments/unknown values/precision/statuses in addition to prior storage/import/export/recovery tests. Browser regression compares all 388 original and revised source cells against the new view and checks versions, collapsible demographics/test groups, state preservation and safe unknown text.
+- Local preview http://127.0.0.1:5186; hard-refresh ⌘⇧R. This task prepares the new detail view locally; GitHub/Vercel publication is not part of the current request. Existing public main was 0.7.1 when work began. Synthetic source/static/test-kit handoff remains available via npm run export:hospital.
+
+Earlier checkpoints below describe previous releases.
+
+---
+
 # Current checkpoint · 11 November 2026 · version 0.7.1
 
 User requested a home/start screen and logo navigation, total patient/session counts or a route to opening a library, followed by pushing the complete current version to GitHub main for hospital testing.

@@ -4,13 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; connect-src 'none'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Digitale NPT · Archiv</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; manifest-src 'self'; img-src 'self' blob: data:; font-src 'self'; connect-src 'none'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>NPT-Archiv</title>
+  <meta name="application-name" content="NPT-Archiv">
+  <meta name="apple-mobile-web-app-title" content="NPT-Archiv">
+  <meta name="theme-color" content="#ae1613">
+  <link rel="icon" href="./favicon.ico" sizes="16x16 32x32 48x48 256x256" type="image/x-icon">
+  <link rel="icon" href="./icons/icon-16.png" sizes="16x16" type="image/png">
+  <link rel="icon" href="./icons/icon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" sizes="180x180">
+  <link rel="manifest" href="./site.webmanifest">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <div id="app"><p>Archiv wird geladen…</p></div>
   <div id="notice" role="status" aria-live="polite"></div>
+  <dialog id="edit-mode-dialog" aria-labelledby="edit-mode-title" aria-describedby="edit-mode-description">
+    <header><h2 id="edit-mode-title">In den Bearbeitungs-Modus wechseln</h2></header>
+    <div class="edit-mode-body"><p id="edit-mode-description">Bitte bestätigen Sie vor dem Bearbeiten:</p>
+      <label class="check"><input id="single-writer" type="checkbox"><span>Niemand sonst bearbeitet gerade diese Bibliothek, auch an anderen PCs.</span></label>
+      <p id="edit-mode-error" class="note error" role="alert" hidden></p>
+      <div class="actions"><button id="cancel-editing" type="button">Abbrechen</button><button id="confirm-editing" class="primary" type="button" disabled>Fortfahren</button></div>
+    </div>
+  </dialog>
   <dialog id="report-dialog"><header><strong id="report-title">Originalbericht · lokale Ansicht</strong><button id="close-report" type="button">Schließen</button></header><iframe id="report-frame" title="Lokale PDF-Seitenansicht" sandbox="allow-scripts allow-same-origin"></iframe></dialog>
   <script type="module" src="./app.js"></script>
 </body>
