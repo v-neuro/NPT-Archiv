@@ -7,7 +7,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source=join(root,'src'),dist=join(root,'dist');
 await mkdir(dist,{recursive:true});
 // Explicit allowlist: no data folders, fixtures, tests, handoff source or arbitrary public content enters the release.
-const files=['index.html','favicon.ico','site.webmanifest','icons/brand.png',...['16','32','48','180','192','256','512'].map(size=>'icons/icon-'+size+'.png'),'style.css','palette.css','app.js','drafts.js','pdf-channel.js','shared.js','csv.js','model.js','clinical.js','storage.js','archive.js','import.js','export.js','assessment-types.js','summary.js','imported-fields.js','measurement-labels.js','save-status.js','workflow.js','history.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
+const files=['index.html','favicon.ico','site.webmanifest','icons/brand.png',...['16','32','48','180','192','256','512'].map(size=>'icons/icon-'+size+'.png'),'style.css','palette.css','app.js','statistics.js','statistics-view.js','drafts.js','pdf-channel.js','shared.js','csv.js','model.js','clinical.js','storage.js','archive.js','import.js','export.js','assessment-types.js','summary.js','imported-fields.js','measurement-labels.js','save-status.js','workflow.js','history.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
 const allowed=new Set([...files,'catalogue.js','pdf-runtime.js','pdf-worker.mjs','icons','vendor','RELEASE.json']);
 for(const entry of await readdir(dist))if(!allowed.has(entry))throw Error(`Unexpected release file: ${entry}. Use a new empty build directory.`);
 await mkdir(join(dist,'icons'),{recursive:true});

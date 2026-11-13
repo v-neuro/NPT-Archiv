@@ -1,4 +1,6 @@
 import { validPdfReady, validPdfStatus } from './pdf-channel.js';
+import {statisticsView} from './statistics-view.js';
+import {newStatisticsSettings,statisticsRange,statisticsSeries} from './statistics.js';
 import { APP_VERSION, uid, fail, sha256, MAX_FILE } from './shared.js';
 import { DraftStore } from './drafts.js';
 import { capabilities, canOpen, permission, FolderStorage, createArchive, readManifest, probeFolder, inspectFolder } from './storage.js';
@@ -36,6 +38,7 @@ let clinicalFilters=emptyClinicalFilters();
 const emptyHistoryFilters=()=>({editFrom:'',editTo:'',assessmentFrom:'',assessmentTo:'',patientId:''});
 let historyFilters=emptyHistoryFilters(),historyPage=0,feedbackTimer;
 let assessmentPdfError=null;
+let statisticsSettings=newStatisticsSettings();
 const historyCatalogs=new WeakMap();
 const exportSelections={assessments:new Set(),patients:new Set()},viewExportIds={assessments:[],patients:[]};
 const fieldCatalogs=new WeakMap();
@@ -98,7 +101,7 @@ async function activateFolder(storage, create, target) {
   const opened = await Archive.open(storage,{compact:true});
   await releaseWriter();lockError='';saveFeedback=null;lastImportReceipt=null;
   archive = opened; sourceFolderName = storage.handle.name; singleWriter = false;
-  clearDrafts([...drafts.entries.keys()]);resetImport();exportSelections.assessments.clear();exportSelections.patients.clear(); selectedFolder = null; detailData=null;detailError='';patientValueDocs.clear();patientValueKey='';importStage=1;assessmentPdfError=null;historyFilters=emptyHistoryFilters();historyPage=0;clinicalFilters=emptyClinicalFilters();query='';fieldQuery='';filterType='';filterStatus='included';patientQuery='';patientResultsOpen=true;currentPatient='';measure='';listPage=0;page = target;
+  clearDrafts([...drafts.entries.keys()]);resetImport();exportSelections.assessments.clear();exportSelections.patients.clear(); selectedFolder = null; detailData=null;detailError='';patientValueDocs.clear();patientValueKey='';importStage=1;statisticsSettings=newStatisticsSettings();assessmentPdfError=null;historyFilters=emptyHistoryFilters();historyPage=0;clinicalFilters=emptyClinicalFilters();query='';fieldQuery='';filterType='';filterStatus='included';patientQuery='';patientResultsOpen=true;currentPatient='';measure='';listPage=0;page = target;
 }
 async function openFolder(create = false, target = 'assessments') {
   // Picker executes while this handler still has user activation.
@@ -171,6 +174,7 @@ async function savePendingEdits(){
 }
 function render() {
   captureFormDrafts();
+  const statisticsScroll=page==='home'?$('#statistics-chart-scroll')?.scrollLeft??0:0;
   const enteringPage=$('main')?.dataset.page!==page;const patientScroll=enteringPage?0:$('.patient-matches')?.scrollTop??0;
   const openDetails=$('main')?.dataset.page===page?[...document.querySelectorAll('main details[open]')].map(node=>node.id||node.querySelector(':scope > summary')?.textContent):[];
   const lockNotice=archive?saveFeedbackView():'';
@@ -178,6 +182,7 @@ function render() {
   $('main').dataset.page=page;$('main').dataset.enter=String(enteringPage);
   for(const node of document.querySelectorAll('main details'))if(openDetails.includes(node.id||node.querySelector(':scope > summary')?.textContent))node.open=true;
   mountFormDrafts();bind();if($('.patient-matches'))$('.patient-matches').scrollTop=patientScroll;
+  if($('#statistics-chart-scroll'))$('#statistics-chart-scroll').scrollLeft=statisticsScroll;
   if(saveFeedback?.needsCheck)document.querySelectorAll('#patient-import-form input,#patient-import-form select,#clinical-import-form input,#clinical-import-form textarea,#clinical-import-form select,#review-clinical,#actor,[data-revision-field],[data-remove-import-file],[data-replace-pdf],[data-add-csv],[data-import-stage]').forEach(control=>{control.disabled=true;});
   if(busy)document.querySelectorAll('#app button,#app input,#app select,#app textarea').forEach(control=>{control.disabled=true;});
   armFeedbackTimeout();
@@ -266,7 +271,7 @@ async function closeLibrary() {
 function homeView(){
   if(!archive)return `<section class="card home-welcome" id="home-empty"><div class="eyebrow">Digitale NPT · Archiv</div><h1>Willkommen im NPT-Archiv</h1><p class="muted">Öffnen Sie Ihre Bibliothek, um Patienten und Untersuchungen zu sehen.</p><button class="primary" data-nav="storage">Bibliothek öffnen</button>${folderAccessNotice()}</section>`;
   const assessments=Object.values(state().assessments),patientCount=patients().length,excluded=assessments.filter(isExcluded).length;
-  return `<div class="heading"><div><div class="eyebrow">${escape(sourceFolderName)}</div><h1>Ihre Bibliothek im Überblick</h1></div><button class="primary" data-nav="import">＋ Importieren</button></div><div class="home-statistics" id="home-overview"><button class="card home-stat" data-home-view="patients"><span>Patienten</span><strong id="home-patient-count">${patientCount.toLocaleString('de-DE')}</strong><small>Patienten ansehen →</small></button><button class="card home-stat" data-home-view="assessments"><span>Untersuchungen</span><strong id="home-assessment-count">${assessments.length.toLocaleString('de-DE')}</strong><small>${excluded?`${excluded.toLocaleString('de-DE')} ausgeschlossen · `:''}Untersuchungen ansehen →</small></button></div><p class="quiet">${archive.snapshot.readOnly?'Zuletzt lesbarer Stand. Bitte die Bibliothek prüfen.':'Gesamter Bestand, einschließlich ausgeschlossener Untersuchungen.'}</p>`;
+  return `<div class="heading"><div><div class="eyebrow">${escape(sourceFolderName)}</div><h1>Ihre Bibliothek im Überblick</h1></div><button class="primary" data-nav="import">＋ Importieren</button></div><div class="home-statistics" id="home-overview"><button class="card home-stat" data-home-view="patients"><span>Patienten</span><strong id="home-patient-count">${patientCount.toLocaleString('de-DE')}</strong><small>Patienten ansehen →</small></button><button class="card home-stat" data-home-view="assessments"><span>Untersuchungen</span><strong id="home-assessment-count">${assessments.length.toLocaleString('de-DE')}</strong><small>${excluded?`${excluded.toLocaleString('de-DE')} ausgeschlossen · `:''}Untersuchungen ansehen →</small></button></div><p class="quiet">${archive.snapshot.readOnly?'Zuletzt lesbarer Stand. Bitte die Bibliothek prüfen.':'Gesamter Bestand, einschließlich ausgeschlossener Untersuchungen.'}</p>${statisticsView(state(),statisticsSettings)}`;
 }
 
 function storageView() {
@@ -513,6 +518,27 @@ async function openReport(id) {
   $('#report-dialog').showModal();
 }
 function bind() {
+  const renderStatistics=(focusId=null)=>{render();if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});};
+  const resetStatisticsPeriod=()=>{statisticsSettings.bucketKey='';if($('#statistics-chart-scroll'))$('#statistics-chart-scroll').scrollLeft=0;};
+  if($('#statistics-preset'))$('#statistics-preset').onchange=event=>{
+    const previous=statisticsRange(statisticsSettings);statisticsSettings.preset=event.target.value;
+    if(statisticsSettings.preset==='custom'&&(!statisticsSettings.from||!statisticsSettings.to)){statisticsSettings.from=previous.from;statisticsSettings.to=previous.to;}
+    resetStatisticsPeriod();renderStatistics('statistics-preset');
+  };
+  if($('#statistics-interval'))$('#statistics-interval').onchange=event=>{statisticsSettings.interval=event.target.value;resetStatisticsPeriod();renderStatistics('statistics-interval');};
+  for(const key of ['from','to'])if($('#statistics-'+key))$('#statistics-'+key).onchange=event=>{statisticsSettings[key]=event.target.value;resetStatisticsPeriod();renderStatistics('statistics-'+key);};
+  if($('#statistics-excluded'))$('#statistics-excluded').onchange=event=>{statisticsSettings.includeExcluded=event.target.checked;renderStatistics('statistics-excluded');};
+  document.querySelectorAll('[data-stat-type]').forEach(input=>input.onchange=()=>{
+    const id=input.dataset.statType;if(statisticsSettings.types===null)statisticsSettings.types=new Set(statisticsSeries(state()).map(type=>type.id));
+    if(input.checked)statisticsSettings.types.add(id);else statisticsSettings.types.delete(id);renderStatistics();[...document.querySelectorAll('[data-stat-type]')].find(node=>node.dataset.statType===id)?.focus({preventScroll:true});
+  });
+  for(const selector of ['#statistics-all-types','#statistics-select-all'])if($(selector))$(selector).onclick=()=>{statisticsSettings.types=null;renderStatistics();};
+  if($('#statistics-no-types'))$('#statistics-no-types').onclick=()=>{statisticsSettings.types=new Set();renderStatistics();};
+  document.querySelectorAll('[data-stat-bucket]').forEach((bucket,index,buckets)=>{
+    const select=key=>{statisticsSettings.bucketKey=key;renderStatistics();const target=[...document.querySelectorAll('[data-stat-bucket]')].find(node=>node.dataset.statBucket===key);target?.focus({preventScroll:true});target?.scrollIntoView({block:'nearest',inline:'nearest'});};
+    bucket.onclick=()=>select(bucket.dataset.statBucket);
+    bucket.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select(bucket.dataset.statBucket);}if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();const next=buckets[index+(event.key==='ArrowLeft'?-1:1)];if(next)select(next.dataset.statBucket);}};
+  });
   document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{if(busy)return;const target=b.dataset.nav;if(target===page){render();return;}guardAction(()=>{page=target;render();});});
   document.querySelectorAll('[data-home-view]').forEach(button=>button.onclick=()=>guardAction(()=>{
     if(busy)return;filterType='';

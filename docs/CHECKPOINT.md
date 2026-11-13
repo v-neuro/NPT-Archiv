@@ -1,3 +1,17 @@
+# Current checkpoint · 13 November 2026 · version 0.13.0
+
+User requested landing-page statistics with one/three/six/twelve-month or manual periods, selectable day/week/month intervals, several examination types in one graph and visible counts. The user explicitly confirmed included-only by default; excluded records are an opt-in. Additional chart ideas are suggestions, not part of this implementation.
+
+- Added read-only statistics.js/statistics-view.js and explicitly allowlisted both in the static build. Home shows timeframe controls, exact dates, multi-type selection, scoped examination/patient counts, stacked timeline, type totals/shares, selected-period details and collapsible exact-count table. Day/week/month include zero intervals; weeks start Monday and show ISO week-year. Edge periods are clipped. More than 1,200 intervals asks for a wider interval/narrower range without truncating full-scope totals.
+- One count per assessment by selected CSV revision date; extra revisions/PDFs do not add counts. Default excluded=false; opt-in adds excluded assessments. Missing/invalid dates are separately reported without invented dates. Legacy unassigned/unknown types remain explicit. Summary/global library cards retain their existing whole-library scope. RAM-only settings reset on library opening; no writes, schema/parser/projection changes, clinical interpretation or external assets.
+- SVG uses corporate colors, numeric labels, keyboard period selection and chart-only horizontal scrolling. All counts are available in the table. Layout checked at 390/768/1440; synthetic monthly screenshot inspected. Charts work in viewing mode.
+- Final npm test: 136/136 passing. npm run build and full Chrome regression pass, including independent per-type/per-month comparisons across 66 assessments/22 patients, every timeframe/interval, empty and multi-type choices, exclusion opt-in, zero periods, keyboard/table interaction and unchanged folder records. Existing PDF isolation, draft protection, browser-data deletion recovery, import, CSV and backup regressions pass. Evidence: ignored test-results/browser-summary.json and /private/tmp/npt-013-{unit,browser}.txt.
+- Local preview: http://127.0.0.1:5186, version 0.13.0; hard-refresh after saving/discarding drafts. User explicitly authorized publishing the tested 0.13.0 version to v-neuro/NPT-Archiv main on 13 November 2026. Public main before this publication is 03c97535f3f8aee9f85705289aab9b2229241a6e / 0.12.1 (previous push and connected Vercel deployment verified). Source/static/synthetic test-kit handoff is local under ignored releases; latest path in releases/LATEST.txt. Actual managed Edge/network-share acceptance remains separate.
+
+Earlier checkpoints below describe previous releases.
+
+---
+
 # Current checkpoint · 13 November 2026 · version 0.12.1
 
 User requested an import action at the bottom of a selected patient's timeline and removal of the current-menu breadcrumb from the top bar.

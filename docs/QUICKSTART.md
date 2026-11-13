@@ -1,4 +1,4 @@
-# Auf dem Mac ausprobieren · Version 0.12.1
+# Auf dem Mac ausprobieren · Version 0.13.0
 
 Die App bleibt während der Entwicklung auf dem privaten Mac. Verwenden Sie ausschließlich erfundene Daten. Ein Krankenhauszugang ist für diese Übungen nicht nötig.
 
@@ -23,6 +23,12 @@ npm run demo
 ```
 
 Es wird jedes Mal ein neuer Ordner angelegt. Vorhandene Übungs- oder Archivordner werden nicht ersetzt. Die erzeugten Übungsbibliotheken liegen als eigene Nachbarordner neben dem Projekt und bleiben für spätere lokale Übungen erhalten. Echte Archive gehören in den vorgesehenen dauerhaften Speicher außerhalb des Quellcodes.
+
+## Statistik auf der Startseite
+
+Das Logo öffnet die Startseite. Unter **Statistik** zuerst Zeitraum und Tag/Woche/Monat wählen. Für einen eigenen Zeitraum „Manueller Zeitraum“ und beide Datumsgrenzen eingeben. Unter „Untersuchungsarten“ lassen sich mehrere Arten gemeinsam anzeigen. Die Säulen zeigen die Anzahl je Zeitraum; daneben stehen die Anteile und Zahlen der ausgewählten Arten. Eine Säule anklicken, um ihre genauen Zahlen zu sehen. Die aufklappbare Tabelle enthält alle Zahlen; breite Grafiken lassen sich seitlich scrollen.
+
+Standardmäßig zählen nur eingeschlossene Untersuchungen. „Ausgeschlossene Untersuchungen mitzählen“ ergänzt sie ausdrücklich. Maßgeblich ist das Untersuchungsdatum der gewählten CSV-Fassung, nicht das Importdatum. Fassungen und PDFs zählen nicht als zusätzliche Untersuchungen. Fehlende/ungültige Datumsangaben werden separat genannt. Die oberen Bibliothekszähler bleiben Gesamtzahlen einschließlich ausgeschlossener Untersuchungen.
 
 ## Neue Bibliothek anlegen oder wechseln
 

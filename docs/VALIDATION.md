@@ -1,10 +1,12 @@
-# Development validation · updated 11 November 2026
+# Development validation · updated 13 November 2026
 
 Only synthetic data was used. The producer app and handoff reference are unchanged. The source has been published to GitHub; the user reported that their hosted app runs on hospital infrastructure. This report does not establish full network-drive or restore acceptance. Current scope is a functional pilot with a static release and source.
 
 ## Automated checks
 
-`npm test`: 101 passing parser/import/durability and File System Access adapter tests. Coverage includes the actual 388-column producer fixture, quoted Unicode/newlines/quotes, BOM/CRLF, numeric zero/negative/decimals, empty versus missing cells, reduced/reordered/future columns, dangerous/duplicate headers, malformed rows, legacy/missing source IDs, invalid dates, oversize input, duplicate/revised/equivalent files, explicit collisions, ambiguous/late PDFs and durable unlinked attachments.
+`npm test`: 136 passing tests, including parser/import/durability and File System Access adapters. Coverage includes the actual 388-column producer fixture, quoted Unicode/newlines/quotes, BOM/CRLF, numeric zero/negative/decimals, empty versus missing cells, reduced/reordered/future columns, dangerous/duplicate headers, malformed rows, legacy/missing source IDs, invalid dates, oversize input, duplicate/revised/equivalent files, explicit collisions, ambiguous/late PDFs and durable unlinked attachments.
+
+Version 0.13.0: nine statistics tests cover rolling calendar ranges, leap/clamped dates, inclusive edges, Monday/ISO-week year boundaries, zero intervals, selected-source dates, exclusion/type selection, distinct patient counts, missing/invalid dates, legacy/unknown types, immutable state, bounded chart size and full/compact disk reconstruction. The full Chrome regression independently compares every monthly/type table cell against selected synthetic CSV sources (22 patients, 66 examinations), checks day/week/month and all presets/manual validation, multi-type/empty selection, excluded opt-in, period keyboard navigation, responsive layout and unchanged folder records. Statistics require no writer session. Both unit and full browser runs passed after the final UI changes.
 
 Failure injection exercises original and commit creation/partial writes/close/readback, corrupt/missing originals, incomplete/unknown/forked records, unknown manifest version, initialization over unrelated contents, stale writers and disconnected storage. Earlier accepted state survives. Assignment corrections, numeric stay/patient IDs, selected revisions, exact original bytes and verified copy/restore are reconstructed from disk without browser state. File-handle adapter tests separately cover permission denial/revocation and createWritable/write/close/readback failures.
 

@@ -1,4 +1,4 @@
-# Digitale NPT Archiv · 0.12.1 synthetic pilot
+# Digitale NPT Archiv · 0.13.0 synthetic pilot
 
 A new project, separate from the iPad assessment app. The handoff snapshot remains unchanged. A static, German-first browser app stores original CSV/PDF exports, patient/stay assignments, revisions and history in a hospital-selected folder. **No patient-data backend, browser database, telemetry, installation or extension.**
 
@@ -31,6 +31,8 @@ The PDF view now runs in an **opaque-origin sandbox**, without allow-same-origin
 Version 0.12.1 adds **Neue Untersuchung für diesen Patienten importieren** below the selected patient's timeline, including when the current type filter has no visits. It starts a fresh import with the exact iMed ID filled in and shown above file selection. Stay, assessment type, clinical details and files start empty. The existing patient-history/confirmation step remains. In viewing mode, the same button first opens the usual editing/initials confirmation; cancel leaves the patient page untouched. Existing unsaved-input protection applies. The top-bar menu breadcrumb has been removed; library and mode controls remain.
 
 ## Current result
+
+Version 0.13.0 adds read-only **Statistik** on the Startseite: rolling one/three/six/twelve-month periods or an inclusive manual date range, grouped by day, Monday–Sunday week or month. Choose several examination types for a stacked timeline with counts, type totals/shares, selected-period details and a collapsible exact-count table. Included examinations are counted by default; excluded records are an explicit opt-in. Each examination counts once by the date in its selected CSV revision, regardless of extra revisions or PDFs. Missing/invalid dates remain separately visible, with no invented dates. Statistics settings stay in RAM; no archive/schema changes or external chart assets are needed.
 
 - Capability gate, explicit folder selection, permission checks, synthetic write/close/read/reopen probe and recovery instructions.
 - The optional probe appears only after folder selection, checks that same handle without another picker, and keeps step-specific errors visible. A new archive is created explicitly after selecting its empty folder. Once a library is active, its screen shows the selected folder name and a close action; opening/creation/probe buttons are hidden. Browser APIs do not expose the full OS/network path.
