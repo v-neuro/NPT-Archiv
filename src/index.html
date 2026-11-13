@@ -23,11 +23,13 @@
     <header><h2 id="edit-mode-title">In den Bearbeitungs-Modus wechseln</h2></header>
     <div class="edit-mode-body"><p id="edit-mode-description">Bitte bestätigen Sie vor dem Bearbeiten:</p>
       <label class="check"><input id="single-writer" type="checkbox"><span>Niemand sonst bearbeitet gerade diese Bibliothek, auch an anderen PCs.</span></label>
+      <label class="section-spacer">Bearbeiterkürzel<input id="session-actor" required maxlength="100" autocomplete="off" placeholder="z. B. AB"></label>
       <p id="edit-mode-error" class="note error" role="alert" hidden></p>
       <div class="actions"><button id="cancel-editing" type="button">Abbrechen</button><button id="confirm-editing" class="primary" type="button" disabled>Fortfahren</button></div>
     </div>
   </dialog>
-  <dialog id="report-dialog"><header><strong id="report-title">Originalbericht · lokale Ansicht</strong><button id="close-report" type="button">Schließen</button></header><iframe id="report-frame" title="Lokale PDF-Seitenansicht" sandbox="allow-scripts allow-same-origin"></iframe></dialog>
+  <dialog id="draft-dialog" aria-labelledby="draft-title"><header><h2 id="draft-title">Nicht gespeicherte Änderungen</h2></header><div class="edit-mode-body"><p>Ihre Eingaben wurden noch nicht gespeichert.</p><p id="draft-error" class="note error" role="alert" hidden></p><div class="actions"><button id="draft-cancel">Zurück</button><button id="draft-discard">Verwerfen</button><button id="draft-save" class="primary">Speichern</button></div></div></dialog>
+  <dialog id="report-dialog"><header><div><strong id="report-title">Originalbericht · lokale Ansicht</strong><small id="report-status" role="status"></small></div><button id="close-report" type="button">Schließen</button></header><iframe id="report-frame" title="Lokale PDF-Seitenansicht" sandbox="allow-scripts"></iframe></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

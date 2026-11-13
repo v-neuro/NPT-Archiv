@@ -2,6 +2,7 @@
 export function newSaveAttempt(snapshot) {
   return {archiveId:snapshot.manifest.archiveId,parent:snapshot.head,recordId:null,checksum:null,recordWriteStarted:false,outcome:'not-saved'};
 }
+export const saveFeedbackExpired = (feedback,now=Date.now()) => feedback?.outcome==='saved'&&!feedback.needsCheck&&Number.isFinite(feedback.dismissAt)&&now>=feedback.dismissAt;
 export function saveOutcome(snapshot,attempt) {
   if(snapshot.readOnly)return 'uncertain';
   if(!attempt)return 'not-saved';

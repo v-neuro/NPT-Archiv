@@ -4,9 +4,10 @@ import { scanLibrary } from './library.js';
 import { selectedRevision, isExcluded } from './model.js';
 import { sourceFieldsOf, isNumericSourceValue } from './summary.js';
 import { assessmentTypeLabel } from './assessment-types.js';
+import { clinicalOf } from './clinical.js';
 
 function integrityFailure(message) {const error=new Error(message);error.requiresArchiveCheck=true;throw error;}
-const META_COLUMNS=['format','app_version','patient_id','stay_id','assessment_id','assessment_type_id','assessment_type','excluded','date','original_date','source_session_id','selected_revision_id','csv_name','csv_sha256','parser_version','producer_version','imported_at','import_actor','snapshot_head','absent_fields','missing_fields','escaped_fields'].map(key=>'archive.'+key);
+const META_COLUMNS=['format','app_version','patient_id','stay_id','assessment_id','assessment_type_id','assessment_type','excluded','date','original_date','source_session_id','selected_revision_id','csv_name','csv_sha256','parser_version','producer_version','imported_at','import_actor','snapshot_head','diagnosis','diagnosis_status','dementia_type','affected_hemisphere','absent_fields','missing_fields','escaped_fields'].map(key=>'archive.'+key);
 export function selectedExportAssessments(state,kind,ids) {
   const selected=new Set(ids);
   if(!selected.size)fail('Zuerst Patienten oder Untersuchungen auswählen.');
@@ -32,7 +33,7 @@ export function csvExportRow(assessment,state,sourceFields,head,audit=null) {
   const revision=selectedRevision(assessment);if(!revision||revision.document.projected)fail('Für den Export fehlen geprüfte Originalwerte.');
   const document=revision.document,entry=audit?audit.get(revision.id):state.history.find(h=>h.operations.some(o=>o.type==='revision.add'&&o.revision.id===revision.id)),escaped=[];
   const originalCells=sourceFields.map(key=>exportCell(Object.hasOwn(document.raw,key)?document.raw[key]:null,key,escaped));
-  const values=['digitale-npt-tabular-export/1',APP_VERSION,state.patients[assessment.patientId]?.identifier??'',assessment.stayId,assessment.id,assessment.assessmentTypeId??'',assessmentTypeLabel(assessment.assessmentTypeId),isExcluded(assessment)?'1':'0',document.date??'',document.dateText??'',assessment.sessionId,revision.id,revision.original.name,revision.original.hash,document.parserVersion,document.producerVersion??'',entry?.createdAt??'',entry?.actor??'',head??'',JSON.stringify(sourceFields.filter(key=>!Object.hasOwn(document.raw,key))),JSON.stringify(sourceFields.filter(key=>document.raw[key]?.missing)),null];
+  const values=['digitale-npt-tabular-export/1',APP_VERSION,state.patients[assessment.patientId]?.identifier??'',assessment.stayId,assessment.id,assessment.assessmentTypeId??'',assessmentTypeLabel(assessment.assessmentTypeId),isExcluded(assessment)?'1':'0',document.date??'',document.dateText??'',assessment.sessionId,revision.id,revision.original.name,revision.original.hash,document.parserVersion,document.producerVersion??'',entry?.createdAt??'',entry?.actor??'',head??'',clinicalOf(assessment).diagnosis??'',clinicalOf(assessment).diagnosisStatus??'',clinicalOf(assessment).dementiaType??'',clinicalOf(assessment).affectedHemisphere??'',JSON.stringify(sourceFields.filter(key=>!Object.hasOwn(document.raw,key))),JSON.stringify(sourceFields.filter(key=>document.raw[key]?.missing)),null];
   const metadata=values.slice(0,-1).map((value,index)=>exportCell(value,META_COLUMNS[index],escaped));metadata.push(quote(JSON.stringify(escaped)));
   return [...metadata,...originalCells].join(';')+'\r\n';
 }

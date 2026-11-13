@@ -1,5 +1,6 @@
 import { fail, isObject, text, validHash, validId, PARSER_VERSION } from './shared.js';
 import { validAssessmentType } from './assessment-types.js';
+import { emptyClinical, validateClinical } from './clinical.js';
 
 export const emptyState = () => ({ patients: {}, assessments: {}, unlinked: {}, history: [] });
 export function validateAttachment(a) {
@@ -46,7 +47,8 @@ export function applyOperations(previous, operations, meta = {}, options = {}) {
         if (!isObject(a) || !validId(a.id) || typeof a.sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(a.sessionId) || typeof a.stayId !== 'string' || !/^[0-9]{1,100}$/.test(a.stayId) || state.assessments[a.id]) fail('Testungskennung oder numerische Aufenthaltskennung ungültig.');
         patient(a.patientId);
         if (a.assessmentTypeId != null && !validAssessmentType(a.assessmentTypeId)) fail('Untersuchungsart wird nicht unterstützt.');
-        state.assessments[a.id] = { ...a, assessmentTypeId:a.assessmentTypeId??null,excluded:false,revisions: [], selectedRevisionId: null, attachments: [] }; break;
+        if(a.clinical!==undefined)fail('Klinische Angaben benötigen eine eigene Operation.');
+        state.assessments[a.id] = { ...a, clinical:emptyClinical(),assessmentTypeId:a.assessmentTypeId??null,excluded:false,revisions: [], selectedRevisionId: null, attachments: [] }; break;
       }
       case 'revision.add': {
         const a = assessment(op.assessmentId); const r = op.revision;
@@ -78,6 +80,11 @@ export function applyOperations(previous, operations, meta = {}, options = {}) {
       case 'assessment.exclusion.set': {
         if (typeof op.excluded !== 'boolean') fail('Einschlussstatus ungültig.');
         assessment(op.assessmentId).excluded=op.excluded;
+        break;
+      }
+      case 'assessment.clinical.set': {
+        validateClinical(op.clinical);
+        assessment(op.assessmentId).clinical={...op.clinical};
         break;
       }
       case 'attachment.add': {

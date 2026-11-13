@@ -1,7 +1,24 @@
 import { Archive } from './archive.js';
 import { scanLibrary } from './library.js';
 import { saveOutcome } from './save-status.js';
-import { fail } from './shared.js';
+import { fail, uid, text } from './shared.js';
+import { validAssessmentType } from './assessment-types.js';
+
+export function buildAssignment(state,assessmentId,{identifier,stayId,assessmentTypeId,reason}) {
+  const assessment=state.assessments[assessmentId];if(!assessment)fail('Untersuchung nicht gefunden.');
+  if(typeof identifier!=='string'||identifier!==''&&!/^[0-9]{1,100}$/.test(identifier))fail('iMed Patienten-ID: nur Ziffern eingeben.');
+  if(typeof stayId!=='string'||!/^[0-9]{1,100}$/.test(stayId))fail('Numerische Aufenthalts-ID erforderlich.');
+  if(!text(reason,2000)||!reason.trim())fail('Grund für die Änderung erforderlich.');
+  if(assessmentTypeId&&!validAssessmentType(assessmentTypeId))fail('Untersuchungsart wird nicht unterstützt.');
+  const operations=[];
+  let patient=Object.values(state.patients).find(p=>p.identifier===identifier);
+  if(identifier&&!patient){patient={id:uid(),identifier,label:''};operations.push({type:'patient.create',patient});}
+  if(assessment.patientId!==(patient?.id??null))operations.push({type:'patient.link',assessmentId,patientId:patient?.id??null,reason});
+  if(assessment.stayId!==stayId)operations.push({type:'stay.update',assessmentId,stayId,reason});
+  if(assessmentTypeId&&assessment.assessmentTypeId!==assessmentTypeId)operations.push({type:'assessment.type.set',assessmentId,assessmentTypeId,reason});
+  if(!operations.length)fail('Keine Änderungen zu speichern.');
+  return operations;
+}
 
 export function importReceipt(built,plan,draft) {
   const ops=built.operations;

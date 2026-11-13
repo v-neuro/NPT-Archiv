@@ -1,3 +1,4 @@
+import { buildPdf } from './build-pdf.mjs';
 import { cp, mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -6,8 +7,8 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const source=join(root,'src'),dist=join(root,'dist');
 await mkdir(dist,{recursive:true});
 // Explicit allowlist: no data folders, fixtures, tests, handoff source or arbitrary public content enters the release.
-const files=['index.html','favicon.ico','site.webmanifest','icons/brand.png',...['16','32','48','180','192','256','512'].map(size=>'icons/icon-'+size+'.png'),'style.css','palette.css','app.js','shared.js','csv.js','model.js','storage.js','archive.js','import.js','export.js','assessment-types.js','summary.js','imported-fields.js','measurement-labels.js','save-status.js','workflow.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
-const allowed=new Set([...files,'catalogue.js','icons','vendor','RELEASE.json']);
+const files=['index.html','favicon.ico','site.webmanifest','icons/brand.png',...['16','32','48','180','192','256','512'].map(size=>'icons/icon-'+size+'.png'),'style.css','palette.css','app.js','drafts.js','pdf-channel.js','shared.js','csv.js','model.js','clinical.js','storage.js','archive.js','import.js','export.js','assessment-types.js','summary.js','imported-fields.js','measurement-labels.js','save-status.js','workflow.js','history.js','projection.js','record.js','library.js','pdf-viewer.html','pdf-viewer.js','viewer.css'];
+const allowed=new Set([...files,'catalogue.js','pdf-runtime.js','pdf-worker.mjs','icons','vendor','RELEASE.json']);
 for(const entry of await readdir(dist))if(!allowed.has(entry))throw Error(`Unexpected release file: ${entry}. Use a new empty build directory.`);
 await mkdir(join(dist,'icons'),{recursive:true});
 for(const file of files)await cp(join(source,file),join(dist,file));
@@ -19,4 +20,5 @@ for(const file of ['pdf.mjs','pdf.worker.mjs'])await cp(join(pdf,'build',file),j
 for(const dir of ['cmaps','standard_fonts','wasm'])await cp(join(pdf,dir),join(dist,'vendor',dir),{recursive:true});
 await cp(join(pdf,'LICENSE'),join(dist,'vendor','LICENSE.pdfjs'));
 await writeFile(join(dist,'RELEASE.json'),JSON.stringify({appVersion:APP_VERSION,archiveFormat:SCHEMA,parserVersion:PARSER_VERSION,pdfjs:JSON.parse(await readFile(join(pdf,'package.json'),'utf8')).version,patientDataIncluded:false},null,2)+'\n');
+await buildPdf(root,dist);
 console.log(`Static release ready: ${dist}`);

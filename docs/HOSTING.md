@@ -1,6 +1,6 @@
 # Static delivery and controlled updates
 
-No server-side patient service is implemented or planned. Publish **only `dist/`**, preferably on a distinct stable hospital-approved HTTPS origin. The hospital PC has internet and the existing producer's external host is reachable, so an approved external static host is a possible delivery path when internal hosting is unavailable. Provider, domain, ownership, access controls and update approval remain undecided. No deployment has occurred.
+No server-side patient service is implemented or planned. Publish **only `dist/`**, preferably on a distinct stable hospital-approved HTTPS origin. The hospital PC has internet and the existing producer's external host is reachable, so an approved external static host is a possible delivery path when internal hosting is unavailable. The user has already tested a hosted release on hospital infrastructure. Exact host ownership, access controls and production update approval still need to be confirmed with IT. Local changes are not deployed until explicitly published.
 
 ## Vercel setup
 
@@ -17,17 +17,18 @@ Development happens on the user's private Mac. Refine and validate the complete 
 
 Do not serve the project root, handoff, fixtures, archive folder, Git metadata, patient exports or backups. No patient folder belongs beneath a web root. Uploading this code to static hosting must never involve selecting patient files. HTML/JS/fonts/CMaps/WASM and PDF worker are all bundled; no CDN runtime dependency. Static hosting's ordinary access logs should contain asset paths, never patient/stay IDs or imported contents. The app makes no content-bearing network calls.
 
-Recommended response headers (adapt to the host and authentication gateway):
+The response-header configuration in `vercel.json` now uses separate policies:
 
-```text
-Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
-X-Content-Type-Options: nosniff
-Referrer-Policy: no-referrer
-X-Frame-Options: SAMEORIGIN
-Cache-Control: no-cache
-```
+- `/` and `/index.html`: application scripts/styles only from this origin, `connect-src 'none'`, same-origin frames/workers, and `frame-ancestors 'none'`.
+- `/pdf-viewer.html`: only the exact hashed bootstrap and stylesheet plus renderer Blob modules; no network connections, nested frames, fonts or worker creation. Framing is permitted only by the application origin. The iframe itself has `sandbox="allow-scripts"`, without allow-same-origin, so its runtime origin is opaque.
+- `/pdf-worker.mjs`: `default-src 'none'; script-src blob: 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'`. The parent creates this fixed local worker and transfers a MessagePort to the renderer. The worker gets no directory handles and no host action channel.
+- Common headers retain nosniff, no-referrer, SAMEORIGIN and cache revalidation. CSP's app framing prohibition is more restrictive than the common X-Frame-Options value.
 
-The HTML's additional CSP restricts the main application to `connect-src 'none'`; the PDF child document allows only same-origin font/CMap/WASM fetches. PDF worker entrypoints are fixed bundled URLs. Do not add third-party scripts, tracking, remote error reporting or remote fonts. The same-origin PDF child frame requires framing by the app; blanket `frame-ancestors 'none'` on every response would break it. A stricter split policy can allow the PDF child only from this origin and prohibit framing `index.html`.
+The viewer's document-level policy matches its host policy, apart from frame-ancestors which requires an HTTP header. `scripts/build-pdf.mjs` hashes the exact inline bootstrap and combined palette/viewer CSS, verifies that `vercel.json` contains the same policy, embeds the trusted runtime code, and packages fonts/CMaps/WASM and reviewed decoder fallbacks in the worker. A source/style change that invalidates the hashes fails the build until the reviewed header configuration is updated. A pinned-worker-layout assertion also fails when the decoder import transformation needs review. Original dependency files are not modified.
+
+Do not replace these with a blanket policy for every response: blocking framing of the PDF document or permitting only same-origin scripts there would break the intended isolated renderer. Copy the matching host configuration with the matching static build. The development preview applies the same path-specific headers for testing. Verify actual production responses after deployment; local results do not establish a hosting account's active configuration.
+
+No third-party scripts, tracking, remote error reporting, remote fonts or patient-data requests are introduced. A private, frame-created MessageChannel carries only trusted renderer code, the selected report and a dedicated parser port. Parent-bound renderer messages are bounded plain-text status only, with no file/permission/action commands. The parser worker's offline resource loader accepts only names present in the bundled map, with no network fallback. PDF actions/scripts/annotations/forms/links remain disabled. Closing or timing out a report terminates its worker and drops its ports/bytes.
 
 Serve `.js/.mjs` as JavaScript, `.wasm` as `application/wasm`, `.css` as CSS, font/CMap binaries appropriately, and use HTTPS. Do not rewrite missing assets or nonexistent patient/export paths to SPA HTML. The app has no route rewrite requirement. Review HTTPS/HSTS/authentication according to IT's existing host policy. No custom headers are claimed to be active until verified on that origin.
 

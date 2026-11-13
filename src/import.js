@@ -2,6 +2,7 @@ import { MAX_BATCH, MAX_CSV, MAX_FILE, fail, sha256, uid, text } from './shared.
 import { parseCsv, changedFields, sourceValue } from './csv.js';
 import { allOriginals, selectedRevision } from './model.js';
 import { validAssessmentType } from './assessment-types.js';
+import { clinicalForNewAssessment } from './clinical.js';
 
 export async function inspectFiles(files, state, columns, loadDocument = null) {
   if (files.length > 100 || files.reduce((n, f) => n + f.size, 0) > MAX_BATCH) fail('Maximal 100 Dateien / 128 MiB pro Stapel.');
@@ -105,6 +106,19 @@ export function reportNameKey(name) {
   return [...stem].filter(character=>/[\p{L}\p{N}]/u.test(character)).slice(0,50).join('');
 }
 
+export async function buildAssessmentPdf(file,assessment) {
+  if(!assessment)fail('Untersuchung nicht gefunden.');
+  if(!file||typeof file.name!=='string'||!/\.pdf$/i.test(file.name)||file.name.length>255||!file.size||file.size>MAX_FILE)fail('Eine PDF-Datei bis 32 MiB auswählen.');
+  const key=reportNameKey(file.name);
+  if(!key||!assessment.revisions.some(r=>reportNameKey(r.original.name)===key))fail('Der PDF-Dateiname passt nicht zur CSV dieser Untersuchung. Bitte die passende PDF auswählen.');
+  const data=new Uint8Array(await file.arrayBuffer());
+  if(data.length!==file.size||new TextDecoder().decode(data.subarray(0,5))!=='%PDF-')fail('Keine gültige PDF-Dateisignatur. Bitte eine andere PDF auswählen.');
+  const hash=await sha256(data);
+  if(assessment.attachments.some(a=>a.kind==='pdf'&&a.hash===hash))return {duplicate:true,operations:[],files:new Map()};
+  const attachment={id:uid(),hash,size:data.length,name:file.name,kind:'pdf',method:'filename-prefix-50',note:'Im Untersuchungsdetail hinzugefügt; die ersten bis zu 50 Buchstaben/Ziffern passen zu einer gespeicherten CSV.',revisionId:null};
+  return {duplicate:false,operations:[{type:'attachment.add',assessmentId:assessment.id,attachment}],files:new Map([[hash,data]])};
+}
+
 // One shared patient/stay assignment. Recompute matches from the original filename prefixes,
 // never from caller-provided suggestions or a previously selected PDF target.
 export function planPatientImport(rows, state, draft) {
@@ -191,6 +205,9 @@ export function buildPatientImport(rows, state, draft) {
   if (!plan.patient && !plan.csvCount) fail('Für einen neuen Patienten die zugehörige CSV hinzufügen.');
   const assigned = plan.rows.map(row => ({ ...row, patientChoice: patient.id }));
   const built = buildImport(assigned, state, plan.patient ? [] : [patient]);
+  // An additional CSV revision or PDF must never overwrite an existing annotation.
+  const annotations=built.operations.filter(op=>op.type==='assessment.create').map(op=>({type:'assessment.clinical.set',assessmentId:op.assessment.id,clinical:clinicalForNewAssessment(draft.clinical,op.assessment.assessmentTypeId)}));
+  built.operations.push(...annotations);
   for (const op of built.operations) {
     if (op.type === 'revision.add') {
       op.revision.original.method = 'single-patient-import';

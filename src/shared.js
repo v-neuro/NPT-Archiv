@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.9.0';
+export const APP_VERSION = '0.12.1';
 export const PARSER_VERSION = 'npt-semicolon/1';
 export const FORMAT = 'digitale-npt-folder-archive';
 export const SCHEMA = 1;

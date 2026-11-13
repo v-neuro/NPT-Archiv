@@ -93,3 +93,14 @@ aside button.brand{width:fit-content;align-self:flex-start}.brand-image{display:
 /* Centre the supplied home logo over the archive name. */
 aside button.brand{align-self:center;margin-inline:auto}.brand-sub{display:block;text-align:center;text-transform:none;letter-spacing:1.2px;margin:10px 0 45px}
 @media(max-width:720px){.brand-sub{margin-bottom:16px}}
+.clinical-inputs{border:0;padding:0;margin:0;min-width:0}
+.diagnosis-status{display:flex;gap:1.5rem;flex-wrap:wrap}
+.clinical-filters{border-top:1px solid var(--line);padding-top:1rem}
+.clinical-filters .grid2{gap:1rem;margin-bottom:.75rem}
+.history-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.changes-table td{vertical-align:top}.changes-table td:nth-child(4){min-width:220px;max-width:400px;overflow-wrap:anywhere}.changes-table .actions{min-width:130px;flex-direction:column;align-items:flex-start}.changes-table td>small{display:block}
+
+#draft-dialog{width:min(600px,calc(100% - 32px));height:fit-content;max-height:calc(100dvh - 32px);color:var(--cd-gray)}#draft-dialog header{height:auto;padding:20px 24px}#draft-title{margin:0;font-size:20px}
+.session-identity{font-size:12px;font-weight:600;color:var(--cd-gray)}
+#report-status{display:block;font-size:12px;font-weight:400;line-height:1.4}#report-dialog header>div{min-width:0;overflow-wrap:anywhere}
+.topbar-tools{margin-left:auto}

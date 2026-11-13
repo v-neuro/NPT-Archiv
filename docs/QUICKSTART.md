@@ -1,4 +1,4 @@
-# Auf dem Mac ausprobieren · Version 0.9.0
+# Auf dem Mac ausprobieren · Version 0.12.1
 
 Die App bleibt während der Entwicklung auf dem privaten Mac. Verwenden Sie ausschließlich erfundene Daten. Ein Krankenhauszugang ist für diese Übungen nicht nötig.
 
