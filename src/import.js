@@ -27,7 +27,13 @@ export async function inspectFiles(files, state, columns, loadDocument = null) {
           if(selected?.document.projected)fail('Zum Vergleich bitte die vollständigen Quelldaten laden.');
           row.comparisonDocument=selected?.document;
           row.changes = selected ? changedFields(selected.document, row.document) : [];
-          row.equivalent = matches[0].revisions.some(r => r.document.semanticHash === row.document.semanticHash);
+          row.equivalent = row.changes.length === 0 || matches[0].revisions.some(r => r.document.semanticHash === row.document.semanticHash);
+          // Earlier adapters used a different semantic hash. Compare their complete
+          // source view as well, including older, currently unselected revisions.
+          if (!row.equivalent) for (const revision of matches[0].revisions.filter(r=>r.document.parserVersion==='npt-semicolon/1')) {
+            const document = revision.document.projected && loadDocument ? await loadDocument(matches[0].id,revision.id) : revision.document;
+            if (!document.projected && changedFields(document,row.document).length===0) { row.equivalent=true;break; }
+          }
           row.patientChoice = matches[0].patientId ?? 'unresolved';
           row.stayId = matches[0].stayId;
           row.assessmentTypeId=matches[0].assessmentTypeId??'';

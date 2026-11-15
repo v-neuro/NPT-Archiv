@@ -16,7 +16,7 @@ test('actual producer fixture: 388 columns, negative score, manual zero, partial
 });
 test('BOM/CRLF, quoted semicolons, quotes, empty versus missing, zero, decimal and unknown fields',async()=>{
  const d=await parseCsv('\uFEFFunknown;phq9_total;session_uuid;empty;missing;notes;tmt_a_s\r\n"007";"0";"sess_legacy-a_b";"";;"Ä;""ß""\nline";"-1.5"\r\n',columns);
- assert.equal(d.raw.empty.missing,false);assert.equal(d.raw.missing.missing,true);assert.equal(d.normalized.missing,null);assert.equal(d.normalized.empty,'');
+ assert.equal(d.raw.empty.missing,false);assert.equal(d.raw.missing.missing,true);assert.equal(d.normalized.missing,null);assert.equal(d.normalized.empty,null);assert.equal(d.missingReasons.empty,'unknown');
  assert.equal(d.normalized.phq9_total,0);assert.equal(d.normalized.tmt_a_s,-1.5);assert.equal(d.normalized.unknown,'007');assert.equal(d.raw.notes.raw,'Ä;"ß"\nline');assert.ok(d.unknownFields.includes('unknown'));
 });
 test('fewer/reordered columns preserve absent values and semantic equivalence, known typing only',async()=>{
@@ -31,7 +31,7 @@ test('invalid quoting, headers, rows, identity and large input are rejected',asy
 });
 test('dates validated explicitly without inventing timezone; invalid numeric source preserved',async()=>{
  assert.equal(germanDate('29.2.2024'),'2024-02-29');assert.equal(germanDate('29.2.2025'),null);assert.equal(germanDate('12/31/2026'),null);
- const d=await parseCsv('session_uuid;testing_start_date;tmt_a_s\n"a";"31.2.2026";"12,5"');assert.equal(d.date,null);assert.equal(d.normalized.tmt_a_s,'12,5');assert.ok(d.warnings.length>1);
+ const d=await parseCsv('session_uuid;testing_start_date;tmt_a_s\n"a";"31.2.2026";"12,5"');assert.equal(d.date,null);assert.equal(d.normalized.tmt_a_s,null);assert.equal(d.raw.tmt_a_s.raw,'12,5');assert.equal(d.missingReasons.tmt_a_s,'error');assert.ok(d.warnings.length>1);
 });
 test('empty producer assessment never fills scores with zero',async()=>{
  const d=await parseCsv(await fixture('empty-assessment.csv'),columns);assert.equal(d.normalized.tmt_a_s,null);assert.equal(d.normalized.phq9_total,null);assert.equal(d.normalized.rey_copy_total,null);

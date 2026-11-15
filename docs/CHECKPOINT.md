@@ -1,3 +1,16 @@
+# Current checkpoint · 15 November 2026 · version 0.14.0
+
+Implemented the supplied digitale-npt CSV schema-v2 request and the follow-up to gray empty sections/cells in **Importierte Angaben & Testergebnisse**.
+
+- New adapter `npt-semicolon/2` and an explicit numeric/0–1 registry support nullable results, separate missing reasons, source schema provenance, diagnostics and independent test statuses. Unknown future fields/codes and raw source precision remain preserved. Unsupported explicit versions reject the individual file. The existing quote-aware CSV parser and one-examination-per-file boundary remain.
+- `upgradeDocument` is a derived migration for saved `/1` documents: blank results acquire NULL/unknown, statuses stay unknown, nonempty historical scores stay source values. Full replay, compact projection, lazy details and export preserve original envelopes/checksums/files. No clinical recalculation or zero filling. Projection 4 rebuilds old disposable caches and retains compact reason/status filter metadata.
+- Additional filters combine group/status with field/reason. Zero and false remain present; empty test sections/cells are gray, and interrupted tests retain valid individual results and status. Main and comparison views show readable German missingness labels. Import/schema diagnostics are visible before committing and in details. Known typed malformed results are NULL/error while exact raw input remains available.
+- Exact-decimal semantic comparison detects differences beyond JavaScript precision and between malformed inputs. Formatting-only equivalence and existing hash/session/revision/ownership behavior remain, including old unselected adapter-1 revisions. `aggregateMeasure` excludes NULL/invalid values and includes zero; administrative charts continue counting empty examinations.
+- Validation: 151/151 Node tests; build and full Chrome regression pass, including v2 import, computed gray styling, real zero, aborted status and combined filters, plus existing import/PDF isolation/history/recovery/backup checks. Local 780-assessment volume check passes (cold 0.42 s, warm 0.09 s, zero authoritative record reads on warm open; synthetic local-disk benchmark). Evidence in ignored test-results/browser-summary.json, schema-v2-gray-missing.png and volume-indexed-780.json; logs /private/tmp/archive-v2-{tests,browser,volume}.txt.
+- Boundaries: source .npt-backup.json/.txt ingestion remains explicitly unsupported; no raw-backup derivation or envelope change. Multi-examination source CSVs remain rejected. PDFs remain original attachments. See docs/SCHEMA-V2.md. Local preview is http://127.0.0.1:5186; build is ready locally. The user explicitly authorized committing and pushing the validated 0.14.0 changes to GitHub main on 15 November 2026. Existing hospital acceptance boundaries remain.
+
+Earlier checkpoints below describe previous releases.
+
 # Current checkpoint · 13 November 2026 · version 0.13.0
 
 User requested landing-page statistics with one/three/six/twelve-month or manual periods, selectable day/week/month intervals, several examination types in one graph and visible counts. The user explicitly confirmed included-only by default; excluded records are an opt-in. Additional chart ideas are suggestions, not part of this implementation.

@@ -94,6 +94,11 @@ aside button.brand{width:fit-content;align-self:flex-start}.brand-image{display:
 aside button.brand{align-self:center;margin-inline:auto}.brand-sub{display:block;text-align:center;text-transform:none;letter-spacing:1.2px;margin:10px 0 45px}
 @media(max-width:720px){.brand-sub{margin-bottom:16px}}
 .clinical-inputs{border:0;padding:0;margin:0;min-width:0}
+.imported-group.is-unperformed{background:#f4f4f4;border-color:#ddd}
+.imported-group.is-unperformed>summary,.imported-group.is-unperformed .source-version-preview{color:#6b6b6b}
+.imported-values tr.is-missing{background:#f4f4f4;color:#6b6b6b}
+.imported-values tr.is-missing strong,.imported-values tr.is-missing .muted,.imported-values tr.is-missing small{color:#6b6b6b}
+.source-warnings{margin-top:1rem}.source-warnings ul{max-height:18rem;overflow:auto;overflow-wrap:anywhere}
 .diagnosis-status{display:flex;gap:1.5rem;flex-wrap:wrap}
 .clinical-filters{border-top:1px solid var(--line);padding-top:1rem}
 .clinical-filters .grid2{gap:1rem;margin-bottom:.75rem}

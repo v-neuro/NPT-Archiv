@@ -1,4 +1,6 @@
 import { measurementLabel } from './measurement-labels.js';
+import { upgradeDocument, isContractMetadata, assessmentStatus, assessmentStatusLabel, isDecimal } from './source-contract.js';
+import { NUMERIC_FIELDS, BOOLEAN_FIELDS } from './field-types.js';
 export const SUMMARY_MEASURES = Object.freeze([
   ['tmt_a_s','TMT A','Sekunden','tmt_a'],['tmt_b_s','TMT B','Sekunden','tmt_b'],
   ['vlmt_sum_dg1_5','VLMT · Lerndurchgänge 1–5','Quellwert','vlmt'],
@@ -31,6 +33,7 @@ export function isNumericSourceValue(value) {
   return typeof value==='string' && /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value.replace(',','.')));
 }
 export function isPerformanceField(key) {
+  if(isContractMetadata(key))return false;
   if(/^(?:(?:session|demographics|testing)(?:_|$)|sessionUUID$|assessment_session_uuid$)/i.test(key))return false;
   if(/(?:^|_)(?:id|uuid|identifier|note|notes|comment|comments|transcript|transcription|version|scoring|policy|aborted|abort|completed|complete|partial|answered|entry|mode|validation|flag|status|selected)(?:_|$)/i.test(key))return false;
   return !/(?:_(?:answered|scored)_count|_health_answered|_education_years|_education_correction|_(?:age|gender|sex|date|timestamp|dom_hand))$/i.test(key);
@@ -38,7 +41,9 @@ export function isPerformanceField(key) {
 export function hasPerformanceValue(document,key) {
   if(!isPerformanceField(key))return false;
   if(document?.projected){const index=document.sourceFields?.indexOf(key)??-1;return index>=0&&document.numericPerformanceFieldIndices.includes(index);}
-  return hasSourceMeasure(document,key)&&isNumericSourceValue(document.raw[key].raw);
+  if(!hasSourceMeasure(document,key))return false;
+  if(NUMERIC_FIELDS.has(key)||BOOLEAN_FIELDS.has(key))return typeof upgradeDocument(document).normalized[key]==='number';
+  return document.exportSchemaVersion==='2'?isDecimal(document.raw[key].raw):isNumericSourceValue(document.raw[key].raw);
 }
 export function performanceFields(assessments) {
   const keys=new Set();
@@ -58,6 +63,7 @@ export function measureContext(document, family) {
   const raw = document?.raw ?? {};
   const value = key => raw[key]?.raw;
   const context = [];
+  if (document?.exportSchemaVersion === '2' && Object.hasOwn(document.assessmentStatuses??{},family)) context.push(`Teststatus: ${assessmentStatusLabel(assessmentStatus(document,family))}`);
   if (value(`${family}_aborted`) === '1' || (family.startsWith('tmt_') && value('tmt_aborted') === '1')) context.push('Abgebrochen laut Export');
   if (value(`${family}_entry_mode`) === 'manual') context.push('Manuell eingegeben');
   if (value(`${family}_completed`) === '0' || value(`${family}_scored_completed`) === '0' || value(`${family}_overall_partial`) === '1') context.push('Unvollständig laut Export');

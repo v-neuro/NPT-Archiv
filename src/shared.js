@@ -1,5 +1,5 @@
-export const APP_VERSION = '0.13.0';
-export const PARSER_VERSION = 'npt-semicolon/1';
+export const APP_VERSION = '0.14.0';
+export const PARSER_VERSION = 'npt-semicolon/2';
 export const FORMAT = 'digitale-npt-folder-archive';
 export const SCHEMA = 1;
 export const MAX_FILE = 32 * 1024 * 1024;

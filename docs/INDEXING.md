@@ -8,7 +8,7 @@ The system of record remains `archive.json`, immutable `records/*.json` and orig
 indexes/v1/<sha256-of-source-fingerprint-and-adapter-versions>.json
 ```
 
-Each derived file is a checksummed envelope with format `digitale-npt-derived-record`, projection version 3, archive ID, parser version and one projected source record. It contains the source record filename, size and last-modified timestamp; original record checksum/parent; operation metadata; compact revision summaries; and the source record ID/checksum needed to load the complete revision later. Patient identifiers never become filenames.
+Each derived file is a checksummed envelope with format `digitale-npt-derived-record`, projection version 4, archive ID, parser version and one projected source record. It contains the source record filename, size and last-modified timestamp; original record checksum/parent; operation metadata; compact revision summaries; and the source record ID/checksum needed to load the complete revision later. Patient identifiers never become filenames.
 
 Compact summaries keep examination date/time text, examiner/demographic display hints, selected known measures and exported mode/completeness/variant/scoring flags. Full raw cells, notes, unknown fields and full precision remain in the authoritative records and originals. The index does not recalculate anything. It is excluded from the static build and source handoff and stays in the selected archive folder.
 
@@ -70,3 +70,8 @@ Projection 3 benchmark (7,800 examinations / 520 records, 0.6.0): cold 3.84 s / 
 ## Read access and UI refresh in 0.7.0
 
 Opening a library/refreshing its compact view no longer reserves the writer lock. Editing explicitly obtains it and rechecks the folder snapshot before sole-writer confirmation. Lightweight refresh clears loaded source caches and re-inspects retained import files; it cannot unblock unresolved saves. The UI connection/full check uses a fresh `scanLibrary({deep:true})` with no index writes and resolves exact attempted-save evidence. Core `rebuildIndex()` and authorized commits still support writing derived caches. Measurement label/group changes do not change projection 3 or source data.
+
+
+## Projection 4: source missingness and test status
+
+Projection 4 (0.14.0) adds explicit source schema provenance, test statuses and compact per-reason field positions. Reason-map keys are prefixed with `reason:` to retain arbitrary future codes safely. NULL values never become zero or a performance-field match. Zero remains a numeric-performance match. Status/reason filtering works from warm indexes without loading complete CSV values. Both parser `/1` and `/2` records can produce this projection; older indexes rebuild from checksummed source records. Full source documents retain all exact raw values, reasons and diagnostics. The read-time migration changes no saved records or originals. See [SCHEMA-V2](SCHEMA-V2.md).

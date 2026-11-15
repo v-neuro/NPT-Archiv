@@ -1,6 +1,7 @@
 import { fail, isObject, text, validHash, validId, PARSER_VERSION } from './shared.js';
 import { validAssessmentType } from './assessment-types.js';
 import { emptyClinical, validateClinical } from './clinical.js';
+import { upgradeDocument } from './source-contract.js';
 
 export const emptyState = () => ({ patients: {}, assessments: {}, unlinked: {}, history: [] });
 export function validateAttachment(a) {
@@ -10,7 +11,7 @@ export function validateAttachment(a) {
 }
 export function objectPath(a) { validateAttachment(a); return `objects/${a.hash.slice(0, 2)}/${a.hash}.${a.kind}`; }
 export function validateDocument(doc, sessionId, projected = false) {
-  if (!isObject(doc) || doc.parserVersion !== PARSER_VERSION || doc.sessionId !== sessionId
+  if (!isObject(doc) || ![PARSER_VERSION,'npt-semicolon/1'].includes(doc.parserVersion) || doc.sessionId !== sessionId
     || !Array.isArray(doc.headers) || doc.headers.length > 2000 || !isObject(doc.raw)
     || !isObject(doc.normalized) || !validHash(doc.semanticHash)) fail('Nicht unterstützter oder ungültiger CSV-Adapter.');
   if (doc.projected && !projected) fail('Eine Suchübersicht darf keine Originaldaten ersetzen.');
@@ -55,7 +56,7 @@ export function applyOperations(previous, operations, meta = {}, options = {}) {
         if (!isObject(r) || !validId(r.id) || a.revisions.some(x => x.id === r.id)) fail('Ungültige Revision.');
         validateAttachment(r.original); if (r.original.kind !== 'csv') fail('Revision benötigt CSV.');
         validateDocument(r.document, a.sessionId, options.projected);
-        a.revisions.push(r); if (a.selectedRevisionId === null) a.selectedRevisionId = r.id; break;
+        a.revisions.push({...r,document:upgradeDocument(r.document)}); if (a.selectedRevisionId === null) a.selectedRevisionId = r.id; break;
       }
       case 'revision.select': {
         const a = assessment(op.assessmentId);

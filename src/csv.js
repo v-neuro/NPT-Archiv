@@ -1,14 +1,6 @@
 import { PARSER_VERSION, MAX_CSV, bytes, decode, fail, sha256 } from './shared.js';
-
-// Deliberately small typed registry. All other fields remain strings, including future fields.
-export const NUMERIC_FIELDS = new Set([
-  'demographics_patient_age', 'demographics_education_years', 'demographics_education_school_years',
-  'demographics_education_training_years', 'demographics_education_dissertation_years',
-  'tmt_a_s', 'tmt_b_s', 'cerad_tmt_a_s', 'cerad_tmt_b_s', 'vlmt_sum_dg1_5',
-  'vlmt_loss_dg5_to_dg7', 'vlmt_rekog_correct_minus_fp', 'moca_total', 'moca_raw_total',
-  'ace_total', 'cerad_mmst_total', 'phq9_total', 'phq9_manual_total', 'gad7_total', 'gds_total',
-  'rey_copy_total', 'rey_copy_subtotal', 'qolie31_overall', 'qolie31_general_health',
-]);
+import { upgradeDocument, isContractMetadata, semanticValue } from './source-contract.js';
+export { NUMERIC_FIELDS } from './field-types.js';
 export function parseTable(input) {
   if (bytes(input).length > MAX_CSV) fail('CSV größer als 8 MiB.');
   const s = input.replace(/^\uFEFF/, '');
@@ -52,32 +44,24 @@ export async function parseCsv(data, knownColumns = []) {
   for (const alias of ['sessionUUID', 'sessionUuid', 'session_id', 'assessment_session_uuid']) {
     if (raw[alias]?.raw && raw[alias].raw !== sessionId) fail('Widersprüchliche Sitzungskennungen. Vor dem Import ausdrücklich klären.');
   }
-  const warnings = ['CSV-Erzeugerversion unbekannt; kein Versionsfeld im Export.'];
-  const normalized = Object.fromEntries(headers.map(h => {
-    const c = raw[h];
-    if (c.missing) return [h, null];
-    if (NUMERIC_FIELDS.has(h) && c.raw !== '') {
-      if (/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(c.raw) && Number.isFinite(Number(c.raw))) return [h, Number(c.raw)];
-      warnings.push(`${h}: unbekanntes Zahlenformat, Text erhalten.`);
-    }
-    return [h, c.raw];
-  }));
+  const warnings = ['CSV-Erzeugerversion unbekannt; App-Version nicht im Export angegeben.'];
   const dateText = raw.testing_start_date?.raw ?? '';
   const date = germanDate(dateText);
   if (dateText && !date) warnings.push('Unbekanntes Untersuchungsdatum; Originaltext erhalten.');
   const timeText = raw.testing_start_time?.raw ?? '';
   if (timeText && !/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(timeText)) warnings.push('Unbekannte Uhrzeit; keine Zeitzone angenommen.');
-  const unknownFields = knownColumns.length ? headers.filter(h => !knownColumns.includes(h)) : [];
+  const unknownFields = knownColumns.length ? headers.filter(h => !knownColumns.includes(h) && !(isContractMetadata(h) && (h === 'export_schema_version' || h === 'export_missing_reason_system' || h.endsWith('_assessment_status') || knownColumns.includes(h.slice(0,-15))))) : [];
   if (unknownFields.length) warnings.push(`${unknownFields.length} unbekannte Felder unverändert erhalten.`);
-  // Quoted numeric/blank distinctions stay in raw. Equivalence ignores header order and numeric formatting only for registered fields.
-  const semantic = headers.slice().sort().map(h => [h, normalized[h]]);
-  return { parserVersion: PARSER_VERSION, producerVersion: null, sessionId, headers, raw, normalized,
+  const document = upgradeDocument({ parserVersion: PARSER_VERSION, producerVersion: null, sessionId, headers, raw,
     date, dateText, timeText, timezone: null, unknownFields, warnings,
-    signature: await sha256(JSON.stringify(headers.slice().sort())),
-    semanticHash: await sha256(JSON.stringify(semantic)) };
+    signature: await sha256(JSON.stringify(headers.slice().sort())) });
+  // Source precision stays in raw; reasons, status, future fields and version participate in equivalence.
+  document.semanticHash = await sha256(JSON.stringify(headers.slice().sort().map(h => [h, semanticValue(document,h)])));
+  return document;
 }
 export function sourceValue(doc, key) { return doc?.raw?.[key]?.raw ?? ''; }
 export function changedFields(a, b) {
+  a = upgradeDocument(a); b = upgradeDocument(b);
   return [...new Set([...a.headers, ...b.headers])].sort().filter(k =>
-    !Object.hasOwn(a.normalized, k) || !Object.hasOwn(b.normalized, k) || a.normalized[k] !== b.normalized[k]);
+    !Object.hasOwn(a.normalized, k) || !Object.hasOwn(b.normalized, k) || JSON.stringify(semanticValue(a,k)) !== JSON.stringify(semanticValue(b,k)));
 }

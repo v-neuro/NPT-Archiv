@@ -1,4 +1,4 @@
-# Digitale NPT Archiv · 0.13.0 synthetic pilot
+# Digitale NPT Archiv · 0.14.0 synthetic pilot
 
 A new project, separate from the iPad assessment app. The handoff snapshot remains unchanged. A static, German-first browser app stores original CSV/PDF exports, patient/stay assignments, revisions and history in a hospital-selected folder. **No patient-data backend, browser database, telemetry, installation or extension.**
 
@@ -31,6 +31,8 @@ The PDF view now runs in an **opaque-origin sandbox**, without allow-same-origin
 Version 0.12.1 adds **Neue Untersuchung für diesen Patienten importieren** below the selected patient's timeline, including when the current type filter has no visits. It starts a fresh import with the exact iMed ID filled in and shown above file selection. Stay, assessment type, clinical details and files start empty. The existing patient-history/confirmation step remains. In viewing mode, the same button first opens the usual editing/initials confirmation; cancel leaves the patient page untouched. Existing unsaved-input protection applies. The top-bar menu breadcrumb has been removed; library and mode controls remain.
 
 ## Current result
+
+Version 0.14.0 supports the digitale-npt **CSV export schema v2** alongside legacy CSVs. Typed nullable values, separate missing reasons, test status, source precision, validation diagnostics and original files are retained. Missing results and empty test sections are gray in **Importierte Angaben & Testergebnisse**; genuine zeros remain visible. Additional filters select test status and missing reason. Older records acquire a conservative derived missingness view without rewriting archive records, checksums or originals. See [schema v2 and migration](docs/SCHEMA-V2.md) for validation rules and remaining format boundaries.
 
 Version 0.13.0 adds read-only **Statistik** on the Startseite: rolling one/three/six/twelve-month periods or an inclusive manual date range, grouped by day, Monday–Sunday week or month. Choose several examination types for a stacked timeline with counts, type totals/shares, selected-period details and a collapsible exact-count table. Included examinations are counted by default; excluded records are an explicit opt-in. Each examination counts once by the date in its selected CSV revision, regardless of extra revisions or PDFs. Missing/invalid dates remain separately visible, with no invented dates. Statistics settings stay in RAM; no archive/schema changes or external chart assets are needed.
 

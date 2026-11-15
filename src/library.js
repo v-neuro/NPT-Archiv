@@ -4,6 +4,7 @@ import { applyOperations, emptyState, objectPath, originalsOf } from './model.js
 import { projectRecord, hydrateFieldInventory, PROJECTION_VERSION } from './projection.js';
 import { readManifest, verifiedWrite } from './storage.js';
 import { seal, validateRecord, validateRecordMetadata, verifyOriginal } from './record.js';
+import { upgradeDocument } from './source-contract.js';
 
 const INDEX_FORMAT='digitale-npt-derived-record';
 const sameSource=(a,b)=>a&&b&&a.name===b.name&&a.size===b.size&&a.lastModified===b.lastModified;
@@ -145,7 +146,7 @@ export async function loadAssessmentDetail(archive,id){
     const source=record.payload.operations.find(op=>op.type==='revision.add'&&op.assessmentId===id&&op.revision.id===revision.id)?.revision;
     if(!source||source.original.hash!==revision.original.hash||source.document.semanticHash!==revision.document.semanticHash)fail('Die Suchübersicht passt nicht zu den Quelldaten. Bitte neu aufbauen.');
     await verifyOriginal(archive.storage,source.original);
-    revisions.push({...revision,document:source.document});
+    revisions.push({...revision,document:upgradeDocument(source.document)});
   }
   return {...a,revisions};
 }

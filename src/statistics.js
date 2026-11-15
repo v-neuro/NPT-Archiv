@@ -1,5 +1,6 @@
 import { ASSESSMENT_TYPES } from './assessment-types.js';
 import { selectedRevision, isExcluded } from './model.js';
+import { upgradeDocument, matchesSourceFilters, isDecimal } from './source-contract.js';
 
 const DAY=86400000;
 export const MAX_STATISTICS_BUCKETS=1200;
@@ -51,7 +52,9 @@ export function aggregateStatistics(state,settings,today=localToday()){
   const selected=new Set(series.map(type=>type.id)),patients=new Set(),counts=new Map();
   for(const assessment of Object.values(state.assessments)){
     const type=assessment.assessmentTypeId??'unassigned';if(!selected.has(type)||!settings.includeExcluded&&isExcluded(assessment))continue;
-    const date=selectedRevision(assessment)?.document.date;if(!validStatisticsDay(date)){result.undated++;continue;}
+    const document=selectedRevision(assessment)?.document;
+    if(!matchesSourceFilters(document,settings.sourceFilters))continue;
+    const date=document?.date;if(!validStatisticsDay(date)){result.undated++;continue;}
     if(date<range.from||date>range.to)continue;
     result.total++;result.totals[type]++;if(isExcluded(assessment))result.excluded++;
     if(assessment.patientId)patients.add(assessment.patientId);else result.unassignedPatients++;
@@ -64,4 +67,22 @@ export function aggregateStatistics(state,settings,today=localToday()){
     result.buckets.push({key,label:bucketLabel(key,settings.interval),from:stamp(Math.max(start,time(range.from))),to:stamp(Math.min(nextBucket(start,settings.interval)-DAY,time(range.to))),values,total:Object.values(values).reduce((sum,n)=>sum+n,0)});
   }
   return result;
+}
+
+// Measured-result denominator is separate from the examination count. Requires full,
+// verified documents; compact indexes intentionally carry no arbitrary score values.
+export function aggregateMeasure(assessments,key,{includeExcluded=false,sourceFilters}={}) {
+  let count=0,total=0,mean=null,min=null,max=null;
+  for(const assessment of assessments) {
+    if(!includeExcluded&&isExcluded(assessment))continue;
+    const source=selectedRevision(assessment)?.document;
+    if(source?.projected)throw Error('Für Messwertstatistiken vollständige Quelldaten laden.');
+    if(!source||!matchesSourceFilters(source,sourceFilters))continue;
+    total++;
+    const doc=upgradeDocument(source),value=doc.normalized[key];
+    const number=typeof value==='number'?value:typeof value==='string'&&isDecimal(value)?Number(value):null;
+    if(number===null||!Number.isFinite(number))continue;
+    count++;mean=count===1?number:mean*((count-1)/count)+number/count;min=min===null?number:Math.min(min,number);max=max===null?number:Math.max(max,number);
+  }
+  return {total,count,missing:total-count,mean,min,max};
 }
