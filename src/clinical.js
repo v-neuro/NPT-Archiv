@@ -53,6 +53,7 @@ export function matchesClinicalFilters(assessment,document,filters={}) {
   if(!contains(clinical.diagnosis,filters.diagnosis)||!contains(clinical.dementiaType,filters.dementiaType))return false;
   if(filters.diagnosisStatus&&clinical.diagnosisStatus!==filters.diagnosisStatus)return false;
   if(filters.affectedHemisphere&&clinical.affectedHemisphere!==filters.affectedHemisphere)return false;
+  if(filters.gender&&(document?.raw?.demographics_patient_gender?.raw??'').trim().toLocaleLowerCase('de')!==filters.gender)return false;
   const range=parseAgeRange(filters.age??'');if(!range.valid)return false;if(!range.active)return true;
   const age=ageAtAssessment(document);if(age===null)return false;
   return (range.min===null||(range.minExclusive?age>range.min:age>=range.min))&&(range.max===null||(range.maxExclusive?age<range.max:age<=range.max));
